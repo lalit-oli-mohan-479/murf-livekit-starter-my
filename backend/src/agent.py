@@ -20,15 +20,7 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-SYSTEM_PROMPT = """You are a helpful, patient, and knowledgeable voice assistant specializing in Indian financial literacy and banking. Your primary goals are:
-1. Explain Government schemes (such as Jan Dhan Yojana, Atal Pension Yojana, Sukanya Samriddhi Yojana, Jeevan Jyoti Bima Yojana, and Suraksha Bima Yojana) in simple, easy-to-understand terms.
-2. Teach basic banking literacy, such as how savings accounts, fixed deposits, UPI, and interest work.
-3. Spread fraud awareness by reminding users to never share their OTPs, UPI PINs, or bank passwords, and warning them about common phone scams and phishing links.
-
-Keep your tone conversational, warm, and friendly. Since this is a voice conversation:
-- Keep your answers concise, ideally two to three sentences at a time.
-- Avoid all markdown formatting, bullet points, asterisks, emojis, symbols, or lists. Write in pure plain text.
-- If explaining a complex scheme, break it down and ask the user if they would like to hear more details."""
+from prompt import SYSTEM_PROMPT
 
 
 class Assistant(Agent):
@@ -75,7 +67,7 @@ async def my_agent(ctx: JobContext):
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
         # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=deepgram.STT(model="nova-3"),
+        stt=deepgram.STT(model="nova-3", language="multi"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=google.LLM(
@@ -85,7 +77,7 @@ async def my_agent(ctx: JobContext):
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=murf.TTS(
                 voice="Nikhil", 
-                locale="en-IN",
+                locale="hi-IN",
                 style="Conversation",
                 tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
                 text_pacing=True
@@ -135,6 +127,12 @@ async def my_agent(ctx: JobContext):
 
     # Join the room and connect to the user
     await ctx.connect()
+
+    # Say the initial greeting to introduce the agent
+    await session.say(
+        "Namaste! Main Aarav hoon, Jan Dhan Seva financial literacy program se. Aaj main basic banking aur government schemes ke baare mein aapki kya madad kar sakta hoon?",
+        allow_interruptions=True,
+    )
 
 
 if __name__ == "__main__":
