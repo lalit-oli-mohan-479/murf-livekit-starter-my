@@ -1,65 +1,300 @@
-import { Button } from '@/components/ui/button';
+'use client';
 
-function WelcomeImage() {
-  return (
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-fg0 mb-4 size-16"
-    >
-      <path
-        d="M15 24V40C15 40.7957 14.6839 41.5587 14.1213 42.1213C13.5587 42.6839 12.7956 43 12 43C11.2044 43 10.4413 42.6839 9.87868 42.1213C9.31607 41.5587 9 40.7957 9 40V24C9 23.2044 9.31607 22.4413 9.87868 21.8787C10.4413 21.3161 11.2044 21 12 21C12.7956 21 13.5587 21.3161 14.1213 21.8787C14.6839 22.4413 15 23.2044 15 24ZM22 5C21.2044 5 20.4413 5.31607 19.8787 5.87868C19.3161 6.44129 19 7.20435 19 8V56C19 56.7957 19.3161 57.5587 19.8787 58.1213C20.4413 58.6839 21.2044 59 22 59C22.7956 59 23.5587 58.6839 24.1213 58.1213C24.6839 57.5587 25 56.7957 25 56V8C25 7.20435 24.6839 6.44129 24.1213 5.87868C23.5587 5.31607 22.7956 5 22 5ZM32 13C31.2044 13 30.4413 13.3161 29.8787 13.8787C29.3161 14.4413 29 15.2044 29 16V48C29 48.7957 29.3161 49.5587 29.8787 50.1213C30.4413 50.6839 31.2044 51 32 51C32.7956 51 33.5587 50.6839 34.1213 50.1213C34.6839 49.5587 35 48.7957 35 48V16C35 15.2044 34.6839 14.4413 34.1213 13.8787C33.5587 13.3161 32.7956 13 32 13ZM42 21C41.2043 21 40.4413 21.3161 39.8787 21.8787C39.3161 22.4413 39 23.2044 39 24V40C39 40.7957 39.3161 41.5587 39.8787 42.1213C40.4413 42.6839 41.2043 43 42 43C42.7957 43 43.5587 42.6839 44.1213 42.1213C44.6839 41.5587 45 40.7957 45 40V24C45 23.2044 44.6839 22.4413 44.1213 21.8787C43.5587 21.3161 42.7957 21 42 21ZM52 17C51.2043 17 50.4413 17.3161 49.8787 17.8787C49.3161 18.4413 49 19.2044 49 20V44C49 44.7957 49.3161 45.5587 49.8787 46.1213C50.4413 46.6839 51.2043 47 52 47C52.7957 47 53.5587 46.6839 54.1213 46.1213C54.6839 45.5587 55 44.7957 55 44V20C55 19.2044 54.6839 18.4413 54.1213 17.8787C53.5587 17.3161 52.7957 17 52 17Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { 
+  ShieldAlert, 
+  CheckCircle2, 
+  Lock, 
+  HelpCircle, 
+  PhoneCall, 
+  ShieldCheck, 
+  UserCheck, 
+  ArrowRight,
+  Sparkles
+} from 'lucide-react';
 
 interface WelcomeViewProps {
   startButtonText: string;
   onStartCall: () => void;
+  micError?: string | null;
+  isConnecting?: boolean;
 }
 
 export const WelcomeView = ({
   startButtonText,
   onStartCall,
+  micError,
+  isConnecting,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
   return (
-    <div ref={ref}>
-      <section className="bg-background flex flex-col items-center justify-center text-center">
-        <WelcomeImage />
+    <div ref={ref} className="mx-auto w-full max-w-6xl px-4 py-8 md:py-16 animate-in fade-in duration-700">
+      
+      {/* 1. Header/Navbar */}
+      <header className="mb-12 flex flex-col items-center justify-between gap-4 border-b border-border/20 pb-6 md:flex-row">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 rounded-xl p-2.5 border border-primary/20">
+            <span className="text-2xl">🏦</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              Jan Dhan Seva <span className="text-primary text-sm font-semibold px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">जन धन सेवा</span>
+            </h1>
+            <p className="text-xs text-muted-foreground">National Financial Literacy Campaign</p>
+          </div>
+        </div>
+        
+        <nav className="flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <a href="#schemes" className="hover:text-primary transition-colors">Government Schemes</a>
+          <a href="#safety" className="hover:text-primary transition-colors">Safety Guidelines</a>
+          <div className="h-4 w-px bg-border/40"></div>
+          <div className="flex items-center gap-1.5 text-xs text-primary font-semibold px-3 py-1 rounded-full bg-primary/10">
+            <PhoneCall className="size-3" />
+            <span>Fraud Help: 1915</span>
+          </div>
+        </nav>
+      </header>
 
-        <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Chat live with your voice AI agent
-        </p>
+      {/* Mic Error Block */}
+      {micError && (
+        <div className="mb-8 rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-left backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="text-destructive mt-0.5 size-5 shrink-0" />
+            <div>
+              <h3 className="text-foreground text-sm font-bold tracking-tight">
+                Microphone Access Denied / Blocked
+              </h3>
+              <p className="text-muted-foreground mt-1 text-xs leading-relaxed text-pretty md:text-sm">
+                Aarav needs microphone access to hear and talk to you. Please enable your microphone:
+              </p>
+              <ul className="text-muted-foreground mt-2 list-inside list-disc text-xs space-y-1">
+                <li>Click the **Lock/Site Settings** icon next to the website address in your URL bar.</li>
+                <li>Toggle the **Microphone** setting to **Allow**.</li>
+                <li>Reload the page and click "Start Call" again.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
-        <Button
-          size="lg"
-          onClick={onStartCall}
-          className="mt-6 w-64 rounded-full font-mono text-xs font-bold tracking-wider uppercase"
-        >
-          {startButtonText}
-        </Button>
+      {/* 2. Hero Section (2-Columns) */}
+      <div className="grid grid-cols-1 gap-12 items-center lg:grid-cols-12 mb-16">
+        
+        {/* Left Column: Website Branding Copy */}
+        <div className="lg:col-span-7 text-left space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary uppercase tracking-wide">
+            <Sparkles className="size-3" />
+            <span>Empowering India's Citizens</span>
+          </div>
+          
+          <h2 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl leading-tight">
+            Sashakt Citizen,<br />
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Surakshit Banking
+            </span>
+          </h2>
+          
+          <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
+            Welcome to the National Financial Literacy Campaign platform. We believe that every citizen deserves safe, simple, and reliable access to financial tools and state benefits. 
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-card/20 border border-border/10">
+              <ShieldCheck className="text-primary mt-1 size-5 shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold text-foreground">Safe & Secure</h4>
+                <p className="text-[11px] text-muted-foreground">Learn safe digital banking rules.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-card/20 border border-border/10">
+              <UserCheck className="text-primary mt-1 size-5 shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold text-foreground">Bilingual AI Guide</h4>
+                <p className="text-[11px] text-muted-foreground">Talk naturally in Hindi, Hinglish, or English.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-4 border-t border-border/10">
+            <span className="text-xs text-muted-foreground">Supported by:</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-muted/40 text-[10px] font-bold text-muted-foreground tracking-wider uppercase">
+              🏦 Government Welfare Schemes
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-muted/40 text-[10px] font-bold text-muted-foreground tracking-wider uppercase">
+              🤖 Murf Falcon Voice TTS
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Interaction Welcome Box */}
+        <div className="lg:col-span-5">
+          <section className="bg-card/30 border border-border/40 rounded-3xl p-8 text-center shadow-2xl backdrop-blur-xl hover:border-primary/20 transition-all duration-500">
+            {/* Active Status Badge */}
+            <div className="bg-primary/10 border-primary/20 text-primary inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-semibold tracking-wider">
+              <CheckCircle2 className="size-3" />
+              LIVE GUIDE AVAILABLE
+            </div>
+
+            {/* Aarav Avatar */}
+            <div className="relative mt-6 mx-auto w-fit">
+              <div className="border-primary/20 absolute -inset-2 rounded-full border bg-gradient-to-tr from-primary/30 to-accent/20 blur-sm"></div>
+              <div className="relative size-28 overflow-hidden rounded-full border-2 border-primary bg-muted bg-slate-800">
+                <Image
+                  src="/aarav-avatar.png"
+                  alt="Aarav - Financial Guide"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
+              <span className="absolute right-1 bottom-1 flex h-4 w-4">
+                <span className="bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+                <span className="bg-primary relative inline-flex h-4 w-4 rounded-full border border-card"></span>
+              </span>
+            </div>
+
+            {/* Title & Info */}
+            <h3 className="text-foreground mt-5 text-2xl font-bold tracking-tight">
+              Talk to Aarav (आरव)
+            </h3>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed max-w-xs mx-auto">
+              Your AI-powered digital guide. Ask him about savings account options, pension schemes, or calculate interest rates in real-time.
+            </p>
+
+            {/* Safe Banking Guardrail Warning */}
+            <div className="border-primary/10 bg-primary/5 mt-6 flex items-start gap-2.5 rounded-2xl border p-3.5 text-left max-w-sm mx-auto">
+              <Lock className="text-primary mt-0.5 size-4 shrink-0" />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <strong className="text-foreground font-bold">Safety Guardrail:</strong> Aarav will <span className="underline decoration-destructive decoration-2">NEVER</span> ask for your ATM PIN, UPI PIN, OTP, or password. Keep your credentials private.
+              </p>
+            </div>
+
+            {/* Action CTA Button */}
+            <Button
+              size="lg"
+              onClick={onStartCall}
+              disabled={isConnecting}
+              className="bg-primary hover:bg-primary/95 text-primary-foreground mt-8 h-12 w-full max-w-xs rounded-full font-bold tracking-wider uppercase transition-all duration-300 shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:shadow-[0_0_25px_rgba(var(--primary),0.5)] cursor-pointer flex items-center justify-center gap-2"
+            >
+              {isConnecting ? 'Connecting...' : startButtonText || 'Start Talking'}
+              <ArrowRight className="size-4" />
+            </Button>
+
+            {/* Language help info */}
+            <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+              <HelpCircle className="size-3" />
+              <span>Hindi, Hinglish, and English supported.</span>
+            </div>
+          </section>
+        </div>
+
+      </div>
+
+      {/* 3. Government Schemes Feature Grid */}
+      <section id="schemes" className="mb-16 scroll-mt-6">
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <h3 className="text-2xl font-bold text-foreground">Government Social Security & Banking Schemes</h3>
+          <p className="text-xs text-muted-foreground mt-2">
+            Aarav can help you check eligibility and explain details of these national schemes.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* PMJDY Card */}
+          <div className="bg-card/20 border border-border/10 rounded-2xl p-5 hover:border-primary/20 transition-all">
+            <span className="text-2xl">🏦</span>
+            <h4 className="text-sm font-bold text-foreground mt-3">Jan Dhan Yojana (PMJDY)</h4>
+            <p className="text-xs text-muted-foreground mt-2">
+              Zero-balance savings account providing basic banking access, RuPay card, and overdraft options.
+            </p>
+            <div className="mt-4 pt-3 border-t border-border/10 text-[10px] text-primary font-bold">
+              Min Age: 10 Years
+            </div>
+          </div>
+
+          {/* APY Card */}
+          <div className="bg-card/20 border border-border/10 rounded-2xl p-5 hover:border-primary/20 transition-all">
+            <span className="text-2xl">👴</span>
+            <h4 className="text-sm font-bold text-foreground mt-3">Atal Pension Yojana (APY)</h4>
+            <p className="text-xs text-muted-foreground mt-2">
+              Guaranteed monthly pension scheme of up to ₹5,000 for workers in the unorganized sector.
+            </p>
+            <div className="mt-4 pt-3 border-t border-border/10 text-[10px] text-primary font-bold">
+              Age limit: 18 - 40 Years
+            </div>
+          </div>
+
+          {/* PMSBY Card */}
+          <div className="bg-card/20 border border-border/10 rounded-2xl p-5 hover:border-primary/20 transition-all">
+            <span className="text-2xl">🛡️</span>
+            <h4 className="text-sm font-bold text-foreground mt-3">Suraksha Bima (PMSBY)</h4>
+            <p className="text-xs text-muted-foreground mt-2">
+              Accidental death and disability insurance cover of ₹2 Lakhs for a premium of just ₹20/year.
+            </p>
+            <div className="mt-4 pt-3 border-t border-border/10 text-[10px] text-primary font-bold">
+              Age limit: 18 - 70 Years
+            </div>
+          </div>
+
+          {/* PMJJBY Card */}
+          <div className="bg-card/20 border border-border/10 rounded-2xl p-5 hover:border-primary/20 transition-all">
+            <span className="text-2xl">❤️</span>
+            <h4 className="text-sm font-bold text-foreground mt-3">Jeevan Jyoti Bima (PMJJBY)</h4>
+            <p className="text-xs text-muted-foreground mt-2">
+              Life insurance coverage of ₹2 Lakhs for any cause of death with a yearly premium of ₹436.
+            </p>
+            <div className="mt-4 pt-3 border-t border-border/10 text-[10px] text-primary font-bold">
+              Age limit: 18 - 50 Years
+            </div>
+          </div>
+        </div>
       </section>
 
-      <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">
-        <p className="text-muted-foreground max-w-prose pt-1 text-xs leading-5 font-normal text-pretty md:text-sm">
-          Need help getting set up? Check out the{' '}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://docs.livekit.io/agents/start/voice-ai/"
-            className="underline"
-          >
-            Voice AI quickstart
-          </a>
-          .
+      {/* 4. Safety Tips / Fraud Prevention */}
+      <section id="safety" className="mb-16 scroll-mt-6 bg-linear-to-r from-primary/5 via-accent/5 to-primary/5 border border-primary/20 rounded-3xl p-6 md:p-8 text-left">
+        <div className="flex flex-col md:flex-row gap-6 items-center">
+          <div className="bg-primary/10 rounded-2xl p-4 border border-primary/20">
+            <ShieldAlert className="size-8 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-lg font-bold text-foreground">Surakshit Banking Guidelines (सुरक्षित बैंकिंग)</h4>
+            <p className="text-xs text-muted-foreground">
+              Always follow these safe banking rules. Reporting online financial fraud promptly can help block and retrieve stolen funds.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 text-xs">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-destructive font-bold">❌</span>
+                <span>Never share OTP or UPI PIN</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-destructive font-bold">❌</span>
+                <span>Do not click suspicious links</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-primary font-bold">📞</span>
+                <span>Report fraud immediately to 1915</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. Footer */}
+      <footer className="border-t border-border/20 pt-8 text-center space-y-4 text-xs text-muted-foreground">
+        <div className="flex justify-center gap-6">
+          <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
+          <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+          <a href="#" className="hover:text-primary transition-colors">Government Portal</a>
+        </div>
+        <p className="max-w-md mx-auto text-[11px] leading-relaxed text-muted-foreground/80">
+          Disclaimer: Aarav is an AI digital guide developed for the National Financial Literacy Campaign. The answers provided are for educational purposes. For official banking and scheme actions, please visit your nearest bank branch or the official government scheme portals.
         </p>
-      </div>
+        <p className="pt-2 text-[10px] text-muted-foreground/60">
+          © 2026 National Financial Literacy Initiative. All Rights Reserved.
+        </p>
+      </footer>
+
     </div>
   );
 };
