@@ -12,6 +12,8 @@ from livekit.agents import (
     inference,
     tokenize,
     room_io,
+    function_tool,
+    RunContext,
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -20,37 +22,82 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-SYSTEM_PROMPT = """You are a helpful, patient, and knowledgeable voice assistant specializing in Indian financial literacy and banking. Your primary goals are:
-1. Explain Government schemes (such as Jan Dhan Yojana, Atal Pension Yojana, Sukanya Samriddhi Yojana, Jeevan Jyoti Bima Yojana, and Suraksha Bima Yojana) in simple, easy-to-understand terms.
-2. Teach basic banking literacy, such as how savings accounts, fixed deposits, UPI, and interest work.
-3. Spread fraud awareness by reminding users to never share their OTPs, UPI PINs, or bank passwords, and warning them about common phone scams and phishing links.
-
-Keep your tone conversational, warm, and friendly. Since this is a voice conversation:
-- Keep your answers concise, ideally two to three sentences at a time.
-- Avoid all markdown formatting, bullet points, asterisks, emojis, symbols, or lists. Write in pure plain text.
-- If explaining a complex scheme, break it down and ask the user if they would like to hear more details."""
+from prompt import SYSTEM_PROMPT
 
 
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    def calculate_fd_returns(self, principal_amount: float, duration_years: float) -> str:
+        """Use this tool to calculate fixed deposit (FD) returns based on a standard 7.1 percent per annum interest rate.
+
+        Args:
+            principal_amount: The principal investment amount in Indian Rupees (INR)
+            duration_years: The investment tenure in years
+        """
+        logger.info(f"Calculating FD returns for {principal_amount} over {duration_years} years")
+        try:
+            rate = 0.071 # 7.1%
+            n = 4 # quarterly compounding
+            maturity_amount = principal_amount * ((1 + rate / n) ** (n * duration_years))
+            interest_earned = maturity_amount - principal_amount
+            
+            p_val = int(round(principal_amount))
+            t_val = round(duration_years, 1)
+            i_val = int(round(interest_earned))
+            m_val = int(round(maturity_amount))
+            
+            return (
+                f"For a principal of {p_val} Rupees invested for {t_val} years, "
+                f"the interest earned will be {i_val} Rupees, and the final maturity amount "
+                f"will be {m_val} Rupees at an interest rate of 7.1 percent per annum."
+            )
+        except Exception as e:
+            logger.error(f"Error calculating FD: {e}")
+            return "Kripya valid numbers enter karein. Main is calculation ko nahi kar paya."
+
+    @function_tool
+    def check_scheme_eligibility(self, scheme_name: str, age: int) -> str:
+        """Use this tool to check if a citizen is eligible for a specific national financial scheme based on their age.
+
+        Args:
+            scheme_name: The name of the scheme (one of: 'Jan Dhan Yojana', 'Atal Pension Yojana', 'PM Suraksha Bima Yojana', 'PM Jeevan Jyoti Bima Yojana')
+            age: The age of the citizen in years
+        """
+        logger.info(f"Checking eligibility for {scheme_name} for age {age}")
+        scheme = scheme_name.lower()
+        
+        if "jan dhan" in scheme or "pmjdy" in scheme:
+            if age >= 10:
+                return "Eligible. Citizen is eligible for Pradhan Mantri Jan Dhan Yojana. The minimum age requirement is 10 years."
+            else:
+                return "Not eligible. The minimum age for Pradhan Mantri Jan Dhan Yojana is 10 years."
+                
+        elif "atal" in scheme or "apy" in scheme or "pension" in scheme:
+            if 18 <= age <= 40:
+                return "Eligible. Citizen is eligible for Atal Pension Yojana. The eligible age group is 18 to 40 years."
+            else:
+                return "Not eligible. The eligible age group for Atal Pension Yojana is 18 to 40 years."
+                
+        elif "suraksha" in scheme or "pmsby" in scheme or "accident" in scheme:
+            if 18 <= age <= 70:
+                return "Eligible. Citizen is eligible for PM Suraksha Bima Yojana. The eligible age group is 18 to 70 years."
+            else:
+                return "Not eligible. The eligible age group for PM Suraksha Bima Yojana is 18 to 70 years."
+                
+        elif "jeevan" in scheme or "jyoti" in scheme or "pmjjby" in scheme or "life" in scheme:
+            if 18 <= age <= 50:
+                return "Eligible. Citizen is eligible for PM Jeevan Jyoti Bima Yojana. The eligible age group is 18 to 50 years."
+            else:
+                return "Not eligible. The eligible age group for PM Jeevan Jyoti Bima Yojana is 18 to 50 years."
+                
+        else:
+            return (
+                f"Unknown scheme '{scheme_name}'. "
+                "Main sirf Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, aur PM Jeevan Jyoti Bima Yojana ki eligibility check kar sakta hoon."
+            )
 
 
 server = AgentServer()
@@ -75,7 +122,7 @@ async def my_agent(ctx: JobContext):
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
         # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=deepgram.STT(model="nova-3"),
+        stt=deepgram.STT(model="nova-3", language="multi"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=google.LLM(
@@ -84,8 +131,7 @@ async def my_agent(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=murf.TTS(
-                voice="Nikhil", 
-                locale="en-IN",
+                voice="Samar", 
                 style="Conversation",
                 tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
                 text_pacing=True
@@ -135,6 +181,12 @@ async def my_agent(ctx: JobContext):
 
     # Join the room and connect to the user
     await ctx.connect()
+
+    # Say the initial greeting to introduce the agent
+    await session.say(
+        "नमस्ते! मैं आरव हूँ, जन धन सेवा वित्तीय साक्षरता कार्यक्रम से। आज मैं बेसिक बैंकिंग और सरकारी योजनाओं के बारे में आपकी क्या मदद कर सकता हूँ?",
+        allow_interruptions=True,
+    )
 
 
 if __name__ == "__main__":
