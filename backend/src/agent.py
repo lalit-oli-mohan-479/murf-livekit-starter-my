@@ -1,4 +1,7 @@
 import logging
+import asyncio
+import json
+import db
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -22,12 +25,16 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
+import uuid
+SESSION_SALT = str(uuid.uuid4())[:8]
+
 from prompt import SYSTEM_PROMPT
 
 
 class Assistant(Agent):
-    def __init__(self) -> None:
+    def __init__(self, user_id: str) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
+        self.user_id = user_id
 
     @function_tool
     def calculate_fd_returns(self, principal_amount: float, duration_years: float) -> str:
@@ -99,12 +106,48 @@ class Assistant(Agent):
                 "Main sirf Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, aur PM Jeevan Jyoti Bima Yojana ki eligibility check kar sakta hoon."
             )
 
+    @function_tool
+    def lookup_caller(self) -> str:
+        """Use this tool to look up details about the current caller (such as name, language preference, and historical facts) from the database."""
+        logger.info(f"lookup_caller tool called for user: {self.user_id}")
+        caller = db.lookup_caller(self.user_id)
+        if caller:
+            return json.dumps(caller)
+        return "No record found for this caller."
+
+    @function_tool
+    def save_caller_info(self, name: str, language_preference: str, facts: dict, consent_given: bool) -> str:
+        """Use this tool to save or update details about the current caller in the database.
+
+        Args:
+            name: The caller's name
+            language_preference: The caller's language preference (e.g. 'Hindi', 'English')
+            facts: A dictionary of key-value facts (e.g., schemes checked, eligibility answers). DO NOT store account or ID numbers!
+            consent_given: Boolean indicating if the caller explicitly gave consent to save their details.
+        """
+        logger.info(f"save_caller_info tool called for user: {self.user_id}, consent: {consent_given}")
+        if not consent_given:
+            return "Cannot save caller information without explicit consent from the user."
+        
+        db.save_caller(self.user_id, name, language_preference, facts)
+        return f"Successfully saved caller details for {name}."
+
+    @function_tool
+    def forget_caller(self) -> str:
+        """Use this tool to delete the current caller's profile and delete all data about them from the database."""
+        logger.info(f"forget_caller tool called for user: {self.user_id}")
+        deleted = db.delete_caller(self.user_id)
+        if deleted:
+            return "Successfully deleted caller profile. The caller is now forgotten."
+        return "No record was found to delete."
+
 
 server = AgentServer()
 
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
+    db.init_db()
 
 
 server.setup_fnc = prewarm
@@ -117,6 +160,9 @@ async def my_agent(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+
+    # Initialize assistant with a default user_id (will update after connecting)
+    assistant = Assistant(user_id="default_user")
 
     # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
     session = AgentSession(
@@ -165,7 +211,7 @@ async def my_agent(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -182,11 +228,38 @@ async def my_agent(ctx: JobContext):
     # Join the room and connect to the user
     await ctx.connect()
 
-    # Say the initial greeting to introduce the agent
-    await session.say(
-        "नमस्ते! मैं आरव हूँ, जन धन सेवा वित्तीय साक्षरता कार्यक्रम से। आज मैं बेसिक बैंकिंग और सरकारी योजनाओं के बारे में आपकी क्या मदद कर सकता हूँ?",
-        allow_interruptions=True,
-    )
+    # Find the remote participant identity (user_id) after connection
+    user_id = "default_user"
+    for _ in range(20):
+        if ctx.room.remote_participants:
+            user_id = list(ctx.room.remote_participants.values())[0].identity
+            logger.info(f"Connected to remote participant. Found identity: {user_id}")
+            break
+        await asyncio.sleep(0.1)
+
+    # Update assistant's user_id dynamically with Session Salt prefix
+    assistant.user_id = f"{SESSION_SALT}_{user_id}"
+    logger.info(f"Updated assistant user_id to: {assistant.user_id}")
+
+    # Dynamic startup greeting based on caller's details
+    caller = db.lookup_caller(assistant.user_id)
+    if caller and caller.get("name"):
+        name = caller.get("name")
+        lang = str(caller.get("language_preference")).lower()
+        last_date = caller.get("last_interaction") or "recently"
+        facts = caller.get("facts") or {}
+        last_topic = facts.get("topic") or facts.get("last_topic") or "government schemes"
+        
+        if lang == "english":
+            welcome_msg = f"Welcome back {name}! Last time on {last_date} we discussed {last_topic}. Did you apply or do you need help with anything else today?"
+        else:
+            welcome_msg = f"स्वागत है वापस {name} जी! पिछली बार {last_date} को हमने {last_topic} के बारे में बात की थी। क्या आपने आवेदन किया या आज मैं आपकी कोई और सहायता कर सकता हूँ?"
+        
+        await session.say(welcome_msg, allow_interruptions=True)
+    else:
+        # New caller
+        welcome_msg = "नमस्ते! जन धन सेवा में आपका स्वागत है। Hello! Welcome to Jan Dhan Seva. How can I help you today?"
+        await session.say(welcome_msg, allow_interruptions=True)
 
 
 if __name__ == "__main__":
