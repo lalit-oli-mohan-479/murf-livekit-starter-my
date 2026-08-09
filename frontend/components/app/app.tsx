@@ -28,9 +28,19 @@ interface AppProps {
 
 export function App({ appConfig }: AppProps) {
   const tokenSource = useMemo(() => {
-    return typeof process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT === 'string'
-      ? getSandboxTokenSource(appConfig)
-      : TokenSource.endpoint('/api/token');
+    if (typeof process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT === 'string') {
+      return getSandboxTokenSource(appConfig);
+    }
+    
+    let userId = '';
+    if (typeof window !== 'undefined') {
+      userId = localStorage.getItem('voice_agent_user_id') || '';
+      if (!userId) {
+        userId = `user_${Math.floor(Math.random() * 1_000_000_000)}`;
+        localStorage.setItem('voice_agent_user_id', userId);
+      }
+    }
+    return TokenSource.endpoint(`/api/token${userId ? `?userId=${userId}` : ''}`);
   }, [appConfig]);
 
   const session = useSession(
