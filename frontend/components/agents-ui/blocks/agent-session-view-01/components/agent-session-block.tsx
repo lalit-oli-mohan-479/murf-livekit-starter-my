@@ -11,6 +11,7 @@ import {
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { cn } from '@/lib/shadcn/utils';
 import { TileLayout } from './tile-view';
+import { ToolDataCard } from '@/components/agents-ui/tool-data-card';
 
 const MotionMessage = motion.create(Shimmer);
 
@@ -205,6 +206,9 @@ export function AgentSessionView_01({
       {...props}
     >
       <Fade top className="absolute inset-x-4 top-0 z-10 h-40" />
+
+      {/* Real-time Tool Data Visual Card Overlay */}
+      <ToolDataCard />
 
       {/* Speaker Status Indicator Overlay */}
       <div className="absolute top-6 left-1/2 z-50 -translate-x-1/2 flex flex-col items-center gap-1 bg-card/75 border border-border/40 px-5 py-2.5 rounded-full shadow-lg backdrop-blur-md">
