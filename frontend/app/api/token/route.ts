@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     let userId = searchParams.get('userId');
     if (!userId) {
       const cookieStore = await cookies();
-      userId = cookieStore.get('voice_agent_user_id')?.value;
+      userId = cookieStore.get('voice_agent_user_id')?.value || null;
       if (!userId) {
         userId = `user_${Math.floor(Math.random() * 1_000_000_000)}`;
         cookieStore.set('voice_agent_user_id', userId, {
