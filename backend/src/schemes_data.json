@@ -1,0 +1,150 @@
+{
+  "data_source": "Curated from official government sources (pmjdy.gov.in, npscra.nsdl.co.in, jansuraksha.gov.in, nsiindia.gov.in, pmkisan.gov.in, mudra.org.in)",
+  "last_verified": "2026-08-01",
+  "schemes": [
+    {
+      "id": "pmjdy",
+      "name": "Pradhan Mantri Jan Dhan Yojana",
+      "name_hindi": "प्रधानमंत्री जन धन योजना",
+      "short_name": "Jan Dhan Yojana",
+      "description": "National financial inclusion program providing universal access to banking, insurance, and pension facilities.",
+      "description_hindi": "राष्ट्रीय वित्तीय समावेशन कार्यक्रम जो सभी को बैंकिंग, बीमा और पेंशन सुविधाएं प्रदान करता है।",
+      "eligibility": {
+        "min_age": 10,
+        "max_age": null,
+        "criteria": ["Indian citizen", "No existing bank account (or willing to transfer)", "Age 10 years or above (minors with guardian)"]
+      },
+      "required_documents": ["Aadhaar Card or Aadhaar Enrollment Slip", "If no Aadhaar: Voter ID, Driving License, PAN Card, Passport, or NREGA Job Card", "Passport-size photograph"],
+      "benefits": ["Zero balance savings account", "RuPay Debit Card", "Accidental insurance cover of 2 lakh rupees", "Life insurance cover of 30000 rupees for accounts opened before January 2015", "Overdraft facility up to 10000 rupees", "Direct Benefit Transfer (DBT) linkage"],
+      "how_to_apply": "Visit nearest bank branch or Banking Correspondent (BC) outlet with Aadhaar card and photograph. You can also apply online through the bank's website.",
+      "official_url": "https://pmjdy.gov.in",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "apy",
+      "name": "Atal Pension Yojana",
+      "name_hindi": "अटल पेंशन योजना",
+      "short_name": "Atal Pension",
+      "description": "Government-backed pension scheme for workers in the unorganized sector, guaranteeing a fixed monthly pension of 1000 to 5000 rupees after age 60.",
+      "description_hindi": "असंगठित क्षेत्र के कामगारों के लिए सरकार समर्थित पेंशन योजना, 60 वर्ष की आयु के बाद 1000 से 5000 रुपये की मासिक पेंशन की गारंटी।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 40,
+        "criteria": ["Indian citizen", "Age between 18 and 40 years", "Must have a savings bank account", "Must not be an income tax payer"]
+      },
+      "required_documents": ["Aadhaar Card", "Bank account with active mobile number", "Nominee details"],
+      "benefits": ["Guaranteed monthly pension of 1000 to 5000 rupees after age 60", "Government co-contributes 50 percent of the premium for 5 years (for those who joined before March 2016)", "Spouse continues to receive pension after subscriber's death", "Nominee receives the accumulated corpus"],
+      "how_to_apply": "Visit your bank branch where you have a savings account. Fill the APY registration form. You can also enroll through net banking or mobile banking apps.",
+      "official_url": "https://npscra.nsdl.co.in/scheme-details.php",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "pmsby",
+      "name": "Pradhan Mantri Suraksha Bima Yojana",
+      "name_hindi": "प्रधानमंत्री सुरक्षा बीमा योजना",
+      "short_name": "PM Suraksha Bima",
+      "description": "Accident insurance scheme providing coverage of 2 lakh rupees for accidental death or permanent disability at a premium of just 20 rupees per year.",
+      "description_hindi": "दुर्घटना बीमा योजना जो केवल 20 रुपये प्रति वर्ष के प्रीमियम पर दुर्घटना मृत्यु या स्थायी विकलांगता के लिए 2 लाख रुपये का कवर प्रदान करती है।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 70,
+        "criteria": ["Indian citizen", "Age between 18 and 70 years", "Must have a savings bank account with auto-debit facility"]
+      },
+      "required_documents": ["Aadhaar Card", "Bank account details", "Nominee declaration form"],
+      "benefits": ["Accidental death cover of 2 lakh rupees", "Permanent total disability cover of 2 lakh rupees", "Permanent partial disability cover of 1 lakh rupees", "Annual premium of only 20 rupees, auto-debited from bank account"],
+      "how_to_apply": "Visit your bank branch or apply through net banking or mobile banking. Give consent for auto-debit of 20 rupees premium annually.",
+      "official_url": "https://jansuraksha.gov.in",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "pmjjby",
+      "name": "Pradhan Mantri Jeevan Jyoti Bima Yojana",
+      "name_hindi": "प्रधानमंत्री जीवन ज्योति बीमा योजना",
+      "short_name": "PM Jeevan Jyoti Bima",
+      "description": "Life insurance scheme providing coverage of 2 lakh rupees in case of death due to any reason at a premium of 436 rupees per year.",
+      "description_hindi": "जीवन बीमा योजना जो किसी भी कारण से मृत्यु होने पर 436 रुपये प्रति वर्ष के प्रीमियम पर 2 लाख रुपये का कवर प्रदान करती है।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 50,
+        "criteria": ["Indian citizen", "Age between 18 and 50 years", "Must have a savings bank account"]
+      },
+      "required_documents": ["Aadhaar Card", "Bank account details", "Nominee declaration form", "Consent for auto-debit"],
+      "benefits": ["Life cover of 2 lakh rupees for death due to any cause", "Annual premium of 436 rupees, auto-debited from bank account", "Coverage from June 1 to May 31 each year"],
+      "how_to_apply": "Visit your bank branch, apply through net banking or mobile banking. Give consent for auto-debit of annual premium.",
+      "official_url": "https://jansuraksha.gov.in",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "ssy",
+      "name": "Sukanya Samriddhi Yojana",
+      "name_hindi": "सुकन्या समृद्धि योजना",
+      "short_name": "Sukanya Samriddhi",
+      "description": "Government savings scheme for the girl child offering one of the highest interest rates among small savings schemes, currently 8.2 percent per annum.",
+      "description_hindi": "बालिकाओं के लिए सरकारी बचत योजना जो लघु बचत योजनाओं में सबसे अधिक ब्याज दर प्रदान करती है, वर्तमान में 8.2 प्रतिशत प्रति वर्ष।",
+      "eligibility": {
+        "min_age": 0,
+        "max_age": 10,
+        "criteria": ["Girl child below 10 years of age", "Only 2 accounts allowed per family (exceptions for twins or triplets)", "Account opened by parent or legal guardian", "Girl child must be an Indian resident"]
+      },
+      "required_documents": ["Birth certificate of the girl child", "Identity proof of the parent or guardian (Aadhaar, PAN, Passport)", "Address proof of the parent or guardian", "Passport-size photographs of the girl child and guardian"],
+      "benefits": ["Interest rate of 8.2 percent per annum (as of Q1 FY2026)", "Tax deduction under Section 80C on deposits up to 1.5 lakh rupees", "Interest earned and maturity amount are tax-free", "Minimum deposit of 250 rupees per year, maximum 1.5 lakh rupees", "Account matures after 21 years from opening or on marriage after age 18", "Partial withdrawal allowed after age 18 for higher education"],
+      "how_to_apply": "Visit any post office or authorized bank branch with the girl child's birth certificate, guardian's ID proof, and photographs. Fill the account opening form.",
+      "official_url": "https://nsiindia.gov.in",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "pmkisan",
+      "name": "PM Kisan Samman Nidhi Yojana",
+      "name_hindi": "पीएम किसान सम्मान निधि योजना",
+      "short_name": "PM Kisan",
+      "description": "Income support scheme providing 6000 rupees per year in three installments to small and marginal farmer families.",
+      "description_hindi": "छोटे और सीमांत किसान परिवारों को तीन किश्तों में प्रति वर्ष 6000 रुपये की आय सहायता प्रदान करने वाली योजना।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": null,
+        "criteria": ["Indian citizen", "Small and marginal farmer family", "Must have cultivable landholding", "Not an institutional landholder", "Not a current or former government employee (with some exceptions)", "Not an income tax payer"]
+      },
+      "required_documents": ["Aadhaar Card (mandatory)", "Land ownership records or documents", "Bank account details linked to Aadhaar", "Mobile number"],
+      "benefits": ["6000 rupees per year in 3 equal installments of 2000 rupees", "Installments credited directly to bank account via DBT", "No restrictions on usage of the funds"],
+      "how_to_apply": "Register online at pmkisan.gov.in, through Common Service Centres (CSC), or visit your local Patwari or revenue officer. Self-registration through the PM-Kisan mobile app is also available.",
+      "official_url": "https://pmkisan.gov.in",
+      "nodal_ministry": "Ministry of Agriculture"
+    },
+    {
+      "id": "mudra",
+      "name": "Pradhan Mantri Mudra Yojana",
+      "name_hindi": "प्रधानमंत्री मुद्रा योजना",
+      "short_name": "PM Mudra Yojana",
+      "description": "Loan scheme for micro and small enterprises providing collateral-free loans up to 10 lakh rupees under three categories: Shishu, Kishore, and Tarun.",
+      "description_hindi": "सूक्ष्म और लघु उद्यमों के लिए ऋण योजना जो तीन श्रेणियों में 10 लाख रुपये तक का बिना गारंटी ऋण प्रदान करती है: शिशु, किशोर और तरुण।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": null,
+        "criteria": ["Indian citizen", "Any non-corporate, non-farm small or micro enterprise", "Existing or new business ventures", "No collateral required"]
+      },
+      "required_documents": ["Identity proof (Aadhaar, Voter ID, PAN Card)", "Address proof", "Business plan or proposal", "Proof of business existence (if existing business)", "Caste certificate (if applicable for SC/ST/OBC)", "Passport-size photographs", "Last 6 months bank statements (if available)"],
+      "benefits": ["Shishu: Loans up to 50000 rupees for starting a business", "Kishore: Loans from 50001 to 5 lakh rupees for growing a business", "Tarun: Loans from 5 lakh to 10 lakh rupees for established businesses", "No collateral or guarantor required", "No processing fee for Shishu loans"],
+      "how_to_apply": "Visit any nationalized bank, regional rural bank, cooperative bank, private bank, or micro finance institution. Submit the application form with business plan and required documents. You can also apply online through the Udyamimitra portal (udyamimitra.in).",
+      "official_url": "https://mudra.org.in",
+      "nodal_ministry": "Ministry of Finance"
+    },
+    {
+      "id": "standup",
+      "name": "Stand-Up India Scheme",
+      "name_hindi": "स्टैंड-अप इंडिया योजना",
+      "short_name": "Stand-Up India",
+      "description": "Provides bank loans between 10 lakh and 1 crore rupees to SC, ST, and women entrepreneurs for setting up greenfield enterprises in manufacturing, services, or trading.",
+      "description_hindi": "अनुसूचित जाति, अनुसूचित जनजाति और महिला उद्यमियों को विनिर्माण, सेवा या व्यापार में नए उद्यम स्थापित करने के लिए 10 लाख से 1 करोड़ रुपये तक का बैंक ऋण प्रदान करती है।",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": null,
+        "criteria": ["Indian citizen", "Must be SC, ST, or a woman", "Age 18 years or above", "For greenfield (new) enterprise only", "Not a defaulter to any bank or financial institution"]
+      },
+      "required_documents": ["Identity proof (Aadhaar, PAN, Voter ID)", "SC/ST certificate (if applicable)", "Address proof", "Business plan with projected financials", "Proof of business registration", "Passport-size photographs"],
+      "benefits": ["Composite loan of 10 lakh to 1 crore rupees", "Covers 75 percent of project cost (25 percent margin money)", "Repayment period of up to 7 years", "Moratorium period of up to 18 months"],
+      "how_to_apply": "Apply at any Scheduled Commercial Bank branch. You can also register on the Stand-Up India portal (standupmitra.in) to connect with a bank in your district.",
+      "official_url": "https://www.standupmitra.in",
+      "nodal_ministry": "Ministry of Finance"
+    }
+  ]
+}
