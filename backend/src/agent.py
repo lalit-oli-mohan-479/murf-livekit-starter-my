@@ -1,7 +1,11 @@
 import logging
 import asyncio
 import json
+import os
 import db
+import aiohttp
+from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -17,6 +21,7 @@ from livekit.agents import (
     room_io,
     function_tool,
     RunContext,
+    get_job_context,
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -35,10 +40,34 @@ class Assistant(Agent):
     def __init__(self, user_id: str) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
         self.user_id = user_id
+        self._room = None
+
+    async def _publish_tool_data(self, tool_type: str, data: dict) -> None:
+        """Push structured tool data to the frontend via LiveKit data channel."""
+        try:
+            room = None
+            try:
+                room = get_job_context().room
+            except Exception:
+                pass
+            if not room:
+                room = getattr(self, "_room", None)
+            
+            if room and room.local_participant:
+                payload = json.dumps({"type": "tool_data", "tool": tool_type, "data": data})
+                await room.local_participant.publish_data(
+                    payload.encode("utf-8"),
+                    topic="tool-results",
+                )
+                logger.info(f"Successfully published tool data to frontend: {tool_type}")
+            else:
+                logger.warning(f"Could not publish tool data: room or local_participant not found (room={room})")
+        except Exception as e:
+            logger.error(f"Failed to publish tool data to frontend: {e}", exc_info=True)
 
     @function_tool
-    def calculate_fd_returns(self, principal_amount: float, duration_years: float) -> str:
-        """Use this tool to calculate fixed deposit (FD) returns based on a standard 7.1 percent per annum interest rate.
+    async def calculate_fd_returns(self, ctx: RunContext, principal_amount: float, duration_years: float) -> str:
+        """Use this tool to calculate fixed deposit (FD) returns based on the current SBI FD interest rate of 7.1 percent per annum.
 
         Args:
             principal_amount: The principal investment amount in Indian Rupees (INR)
@@ -46,8 +75,9 @@ class Assistant(Agent):
         """
         logger.info(f"Calculating FD returns for {principal_amount} over {duration_years} years")
         try:
-            rate = 0.071 # 7.1%
-            n = 4 # quarterly compounding
+            rate = 0.071  # 7.1% SBI general citizen rate
+            rate_source = "SBI general citizen FD rate as of August 2026"
+            n = 4  # quarterly compounding
             maturity_amount = principal_amount * ((1 + rate / n) ** (n * duration_years))
             interest_earned = maturity_amount - principal_amount
             
@@ -56,10 +86,20 @@ class Assistant(Agent):
             i_val = int(round(interest_earned))
             m_val = int(round(maturity_amount))
             
+            await self._publish_tool_data("fd_calculator", {
+                "principal": p_val,
+                "duration_years": t_val,
+                "interest_earned": i_val,
+                "maturity_amount": m_val,
+                "rate": "7.1%",
+                "rate_source": rate_source,
+            })
+
             return (
                 f"For a principal of {p_val} Rupees invested for {t_val} years, "
                 f"the interest earned will be {i_val} Rupees, and the final maturity amount "
-                f"will be {m_val} Rupees at an interest rate of 7.1 percent per annum."
+                f"will be {m_val} Rupees. This is based on {rate_source} at 7.1 percent per annum "
+                f"with quarterly compounding."
             )
         except Exception as e:
             logger.error(f"Error calculating FD: {e}")
@@ -105,6 +145,146 @@ class Assistant(Agent):
                 f"Unknown scheme '{scheme_name}'. "
                 "Main sirf Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, aur PM Jeevan Jyoti Bima Yojana ki eligibility check kar sakta hoon."
             )
+
+    @function_tool
+    async def lookup_govt_scheme(self, ctx: RunContext, scheme_name: str) -> str:
+        """Use this tool when a user asks about a government financial scheme and wants to know its details such as required documents, eligibility criteria, benefits, or how to apply. This tool provides comprehensive information about Indian government schemes like Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, PM Jeevan Jyoti Bima, Sukanya Samriddhi, PM Kisan, PM Mudra Yojana, and Stand-Up India.
+
+        Args:
+            scheme_name: The name or keyword of the government scheme to look up (e.g., 'Jan Dhan', 'Sukanya', 'Mudra', 'PM Kisan')
+        """
+        logger.info(f"lookup_govt_scheme called for: {scheme_name}")
+        try:
+            data_path = Path(__file__).parent / "schemes_data.json"
+            with open(data_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            query = scheme_name.lower()
+            matched = None
+            for scheme in data["schemes"]:
+                searchable = f"{scheme['name']} {scheme['name_hindi']} {scheme['short_name']} {scheme['id']}".lower()
+                if any(word in searchable for word in query.split()):
+                    matched = scheme
+                    break
+
+            if not matched:
+                available = ", ".join(s["short_name"] for s in data["schemes"])
+                return f"I could not find a scheme matching '{scheme_name}'. The schemes I have information about are: {available}."
+
+            docs = ", ".join(matched["required_documents"])
+            benefits = ". ".join(matched["benefits"])
+            eligibility = ". ".join(matched["eligibility"]["criteria"])
+            data_date = data.get("last_verified", "recently")
+
+            await self._publish_tool_data("scheme_lookup", {
+                "name": matched['name'],
+                "name_hindi": matched['name_hindi'],
+                "documents": matched['required_documents'],
+                "benefits": matched['benefits'],
+                "eligibility": matched['eligibility']['criteria'],
+                "how_to_apply": matched['how_to_apply'],
+                "official_url": matched['official_url'],
+                "data_as_of": data_date,
+            })
+
+            return (
+                f"Scheme: {matched['name']} ({matched['name_hindi']}). "
+                f"Description: {matched['description']} "
+                f"Eligibility: {eligibility}. "
+                f"Required Documents: {docs}. "
+                f"Benefits: {benefits}. "
+                f"How to Apply: {matched['how_to_apply']} "
+                f"Official Website: {matched['official_url']}. "
+                f"This information is verified as of {data_date}."
+            )
+        except FileNotFoundError:
+            logger.error("schemes_data.json not found")
+            return "I am sorry, the scheme database is currently unavailable. Please try again later or visit myscheme.gov.in for official information."
+        except Exception as e:
+            logger.error(f"Error in lookup_govt_scheme: {e}")
+            return "I encountered an error looking up this scheme. Please try again or visit myscheme.gov.in for official information."
+
+    @function_tool
+    async def get_gold_silver_price(self, ctx: RunContext) -> str:
+        """Use this tool when a user asks about the current price of gold or silver in India. This fetches live market prices in Indian Rupees per gram."""
+        logger.info("get_gold_silver_price tool called")
+        api_key = os.environ.get("GOLD_API_KEY", "")
+
+        if not api_key:
+            logger.warning("GOLD_API_KEY not set, using fallback prices")
+            return self._gold_fallback_response("No API key configured")
+
+        try:
+            url = "https://www.goldapi.io/api/XAU/INR"
+            headers = {"x-access-token": api_key, "Content-Type": "application/json"}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status != 200:
+                        logger.error(f"GoldAPI returned status {resp.status}")
+                        return self._gold_fallback_response(f"API returned status {resp.status}")
+                    gold_data = await resp.json()
+
+            # GoldAPI returns price per troy ounce; convert to per gram
+            price_per_oz = gold_data.get("price", 0)
+            price_per_gram_24k = round(price_per_oz / 31.1035, 2)
+            price_per_gram_22k = round(price_per_gram_24k * 0.9167, 2)
+            timestamp = gold_data.get("timestamp", 0)
+            data_time = datetime.fromtimestamp(timestamp).strftime("%B %d, %Y at %I:%M %p") if timestamp else "just now"
+
+            # Now fetch silver price
+            silver_price_per_gram = None
+            try:
+                silver_url = "https://www.goldapi.io/api/XAG/INR"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(silver_url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        if resp.status == 200:
+                            silver_data = await resp.json()
+                            silver_oz = silver_data.get("price", 0)
+                            silver_price_per_gram = round(silver_oz / 31.1035, 2)
+            except Exception as e:
+                logger.warning(f"Silver price fetch failed: {e}")
+
+            price_data = {
+                "gold_24k": int(price_per_gram_24k),
+                "gold_22k": int(price_per_gram_22k),
+                "silver": int(silver_price_per_gram) if silver_price_per_gram else None,
+                "timestamp": data_time,
+                "source": "GoldAPI.io (Live)",
+            }
+            await self._publish_tool_data("gold_silver_price", price_data)
+
+            result = (
+                f"Live gold price as of {data_time}: "
+                f"24 karat gold is approximately {int(price_per_gram_24k)} Rupees per gram. "
+                f"22 karat gold is approximately {int(price_per_gram_22k)} Rupees per gram."
+            )
+            if silver_price_per_gram:
+                result += f" Silver is approximately {int(silver_price_per_gram)} Rupees per gram."
+            result += " These are live market rates and may vary slightly at your local jeweller."
+            return result
+
+        except asyncio.TimeoutError:
+            logger.error("GoldAPI request timed out")
+            return self._gold_fallback_response("The price service timed out")
+        except aiohttp.ClientError as e:
+            logger.error(f"GoldAPI connection error: {e}")
+            return self._gold_fallback_response("Could not connect to the price service")
+        except Exception as e:
+            logger.error(f"Error in get_gold_silver_price: {e}")
+            return self._gold_fallback_response("An unexpected error occurred")
+
+    def _gold_fallback_response(self, reason: str) -> str:
+        """Returns a graceful fallback when the live gold price API is unavailable."""
+        logger.info(f"Using gold price fallback. Reason: {reason}")
+        return (
+            f"I could not fetch live gold prices right now ({reason}). "
+            f"As a rough estimate based on recent market trends in August 2026, "
+            f"24 karat gold is around 7400 to 7600 Rupees per gram and "
+            f"22 karat gold is around 6800 to 7000 Rupees per gram. "
+            f"Silver is around 95 to 100 Rupees per gram. "
+            f"For accurate current prices, please check with your local jeweller or visit goldprice.org."
+        )
 
     @function_tool
     def lookup_caller(self) -> str:
@@ -239,6 +419,7 @@ async def my_agent(ctx: JobContext):
 
     # Update assistant's user_id dynamically with Session Salt prefix
     assistant.user_id = f"{SESSION_SALT}_{user_id}"
+    assistant._room = ctx.room  # Store room ref for publishing tool data to frontend
     logger.info(f"Updated assistant user_id to: {assistant.user_id}")
 
     # Dynamic startup greeting based on caller's details
