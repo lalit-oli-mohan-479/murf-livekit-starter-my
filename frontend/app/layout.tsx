@@ -76,16 +76,12 @@ export default async function RootLayout({ children }: RootLayoutProps) {
               target="_blank"
               rel="noopener noreferrer"
               href="https://livekit.io"
-              className="scale-100 transition-transform duration-300 hover:scale-110"
+              className="flex items-center gap-2 scale-100 transition-transform duration-300 hover:scale-105"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logo} alt={`${companyName} Logo`} className="block size-6 dark:hidden" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoDark ?? logo}
-                alt={`${companyName} Logo`}
-                className="hidden size-6 dark:block"
-              />
+              <svg className="size-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 21h18M19 21v-8M5 21v-8M9 21v-8M15 21v-8M3 13h18L12 3z" />
+              </svg>
+              <span className="text-sm font-bold text-foreground">Jan Dhan Seva</span>
             </a>
             <span className="text-foreground font-mono text-xs font-bold tracking-wider uppercase">
               Built with{' '}

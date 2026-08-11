@@ -1,0 +1,9 @@
+{
+  "rule": {
+    "dispatchRuleDirect": {
+      "roomPrefix": "inbound-",
+      "agentName": "inbound-agent"
+    },
+    "trunkIds": ["ST_YOUR_INBOUND_TRUNK_ID"]
+  }
+}

@@ -11,6 +11,7 @@ import {
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { cn } from '@/lib/shadcn/utils';
 import { TileLayout } from './tile-view';
+import { ToolDataCard } from '@/components/agents-ui/tool-data-card';
 
 const MotionMessage = motion.create(Shimmer);
 
@@ -177,7 +178,7 @@ export function AgentSessionView_01({
 }: React.ComponentProps<'section'> & AgentSessionView_01Props) {
   const session = useSessionContext();
   const { messages } = useSessionMessages(session);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { state: agentState } = useAgent();
 
@@ -205,6 +206,56 @@ export function AgentSessionView_01({
       {...props}
     >
       <Fade top className="absolute inset-x-4 top-0 z-10 h-40" />
+
+      {/* Real-time Tool Data Visual Card Overlay */}
+      <ToolDataCard />
+
+      {/* Speaker Status Indicator Overlay */}
+      <div className="absolute top-6 left-1/2 z-50 -translate-x-1/2 flex flex-col items-center gap-1 bg-card/75 border border-border/40 px-5 py-2.5 rounded-full shadow-lg backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          {agentState === 'speaking' ? (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+              </span>
+              <span className="text-[10px] font-bold text-yellow-500 tracking-widest uppercase">Aarav is speaking</span>
+            </>
+          ) : agentState === 'listening' ? (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] font-bold text-emerald-500 tracking-widest uppercase">Listening to you</span>
+            </>
+          ) : agentState === 'thinking' ? (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              <span className="text-[10px] font-bold text-blue-500 tracking-widest uppercase">Aarav is thinking</span>
+            </>
+          ) : (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground"></span>
+              </span>
+              <span className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Connected</span>
+            </>
+          )}
+        </div>
+        <div className="text-[9px] text-muted-foreground font-semibold text-center">
+          {agentState === 'speaking'
+            ? 'आरव बोल रहे हैं...'
+            : agentState === 'listening'
+              ? 'बोलना शुरू करें, आरव सुन रहे हैं...'
+              : agentState === 'thinking'
+                ? 'आरव सोच रहे हैं...'
+                : 'कॉल शुरू हो गया है'}
+        </div>
+      </div>
       {/* transcript */}
 
       <div className="absolute top-0 bottom-[135px] flex w-full flex-col md:bottom-[170px]">
