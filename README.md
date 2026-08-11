@@ -6,14 +6,16 @@
 
 ---
 
-## 🌟 What We Have Built (Days 1 – 5 Progress)
+## 🌟 What We Have Built (Days 1 – 6 Progress)
 
-Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**.
+Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, while proactively placing outbound SIP reminder calls for approaching government scheme deadlines!
 
 ```
-User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf Falcon TTS] → audio → User hears
-                                           ↓
-                              [Tools & SQLite Memory] → [LiveKit Data Channel] → 📱 UI Card Push
+Inbound Flow:  User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf Falcon TTS] → audio → User hears
+                                            ↓
+                               [Tools & SQLite Memory] → [LiveKit Data Channel] → 📱 UI Card Push
+
+Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone → [Gated Identity Gate] → 📊 [SQLite Call Log & Retry]
 ```
 
 ---
@@ -60,6 +62,18 @@ User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf 
 - **Real-Time UI Data Push (Advanced)**:
   - Pushes structured JSON tool outputs over LiveKit Data Channels to display floating, interactive cards (`ToolDataCard`) on screen showing live rates, document checkmarks (`✓ Aadhaar Card`), and FD maturity breakdowns!
 
+#### 🔹 Day 6 — Outbound SIP Telephony Agent & Outcome Handling 📞
+- **Outbound Telephony & SIP Trunking**:
+  - Configured LiveKit Outbound SIP trunking with Linphone to place real outbound phone calls.
+- **Gated Identity Verification (Security Gate)**:
+  - Verified caller identity (*"नमस्ते, मैं आरव बोल रहा हूँ... क्या मैं Ramesh जी से बात कर रहा हूँ?"*). If identity is denied, Aarav apologizes (`wrong_person_reached`) and disconnects immediately.
+- **CSV Batch Campaign Management**:
+  - Added support for loading target phone numbers, customer names, scheme details, and application deadlines directly from CSV files (`customers.csv`).
+- **Telephony Outcome Engine & Retry Logic**:
+  - Defined outcome handling for `NO_ANSWER`, `BUSY`, `VOICEMAIL`, `WRONG_PERSON`, `EARLY_HANGUP`, and `COMPLETED` with automated retry recommendations (e.g. retry Busy in 15 mins, No Answer in 2 hours).
+- **SQLite Audit & Duration Persistence**:
+  - Automatically records call telemetry into SQLite (`data.db` -> table `outbound_calls`), tracking recipient details, exact call duration in seconds, outcome status, and retry recommendations.
+
 ---
 
 ## 🛠️ Data Sources & Freshness Documentation
@@ -69,9 +83,8 @@ User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf 
 | `get_gold_silver_price` | [GoldAPI.io](https://www.goldapi.io/) | **Live API** | Real-time live market timestamp |
 | `lookup_govt_scheme` | Curated dataset (`schemes_data.json`) | **Local** | Verified August 2026 from official govt portals |
 | `calculate_fd_returns` | SBI General Citizen FD Rate | **Local** | 7.1% p.a., August 2026 |
-| `lookup_caller` / `save_caller_info` | SQLite Database (`backend/src/agent_memory.db`) | **Local** | Real-time caller profile storage |
-
-> **Note on Government Scheme Data:** There is currently no open public API for Indian government schemes (`myscheme.gov.in` does not provide a public API). Therefore, scheme information is stored locally in `backend/src/schemes_data.json` based on official government documentation.
+| `lookup_caller` / `save_caller_info` | SQLite Database (`backend/src/data.db`) | **Local** | Real-time caller profile storage |
+| `log_outbound_call` | SQLite Database (`backend/src/data.db`) | **Local** | Outbound call duration & outcome audit |
 
 ---
 
@@ -80,61 +93,53 @@ User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf 
 ### Prerequisites
 - **Python 3.10+** & **[uv](https://docs.astral.sh/uv/)**
 - **Node.js 18+** & **pnpm**
-- **LiveKit Cloud** account (or local `livekit-server`)
+- **LiveKit Cloud** account
 
-### 1. Clone the repository
+---
+
+### 1. Inbound Web Agent Quickstart
+
 ```bash
-git clone https://github.com/murf-ai/murf-livekit-starter.git
-cd murf-livekit-starter
-```
-
-### 2. Configure Environment Variables
-Create `.env.local` in `backend/` and `frontend/`:
-
-**`backend/.env.local`**:
-```env
-LIVEKIT_URL=ws://localhost:7880
-LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=secret
-MURF_API_KEY=your_murf_api_key
-DEEPGRAM_API_KEY=your_deepgram_api_key
-GOOGLE_API_KEY=your_google_gemini_api_key
-GOLD_API_KEY=your_goldapi_key  # Optional: for live gold rates
-```
-
-### 3. Install Dependencies & Run
-
-**Option A — Windows PowerShell (All-in-one):**
-```powershell
-.\start_app.ps1
-```
-
-**Option B — Separate Terminals:**
-```bash
-# Terminal 1 — LiveKit Server
-livekit-server --dev
-
-# Terminal 2 — Backend Agent
+# Terminal 1 — Backend Agent
 cd backend
 uv sync
 uv run python src/agent.py dev
 
-# Terminal 3 — Frontend UI
+# Terminal 2 — Frontend UI
 cd frontend
 pnpm install
 pnpm dev
 ```
-
 Open **`http://localhost:3000`** in your browser, click **"START TALKING"**, and start conversing with Aarav!
 
 ---
 
-## 📸 Demo Queries to Try
+### 2. Outbound Telephony Agent (Day 6) Quickstart
 
+```bash
+# Terminal 1 — Outbound Agent Worker
+cd backend
+uv run python src/telephony/outbound/agent.py dev
+
+# Terminal 2 — Dispatch Outbound Call from CSV Batch
+cd backend
+uv run python src/telephony/outbound/dial.py --csv src/telephony/outbound/customers.csv --row 3
+```
+
+---
+
+## 📸 Demo Queries & Test Scenarios
+
+### Inbound Queries:
 - 🪙 **Live Gold Price:** *"Aaj gold price kya hai?"* → Aarav speaks rates + Live Bullion Card pops up!
 - 📄 **Government Scheme:** *"Sukanya Samriddhi Yojana ke documents batao."* → Document checklist card appears!
 - 💰 **FD Calculator:** *"50,000 Rupees par 2 saal ka FD return calculate karo."* → Maturity breakdown card appears!
-- 🔗 **Tool Chaining:** Tell Aarav your age, then ask *"Kya main Atal Pension Yojana ke liye eligible hoon?"* → Aarav checks eligibility without re-asking age!
+
+### Outbound Call Scenarios (Day 6):
+- 🆔 **Identity Verification:** Confirm name (*"हाँ, मैं ललित बात कर रहा हूँ"*) -> Aarav proceeds to disclose scheme details.
+- 🚫 **Wrong Person Gate:** Deny name (*"नहीं, गलत नंबर है"*) -> Aarav apologizes and hangs up automatically.
+- 🔒 **Security Guardrail:** Ask to share OTP/PIN -> Aarav refuses and states security warning.
+- 📊 **SQLite Audit Log:** Disconnect call -> Watch terminal print `[CALL OUTCOME REPORT (SAVED TO SQLITE)]` with call duration & outcome status.
 
 ---
 
