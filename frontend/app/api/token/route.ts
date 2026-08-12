@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { AccessToken, type AccessTokenOptions, type VideoGrant } from 'livekit-server-sdk';
 import { RoomConfiguration } from '@livekit/protocol';
 
+import { cookies } from 'next/headers';
+
 type ConnectionDetails = {
   serverUrl: string;
   roomName: string;
@@ -45,8 +47,22 @@ export async function POST(req: Request) {
     }
       
     // Generate participant token
+    const { searchParams } = new URL(req.url);
+    let userId = searchParams.get('userId');
+    if (!userId) {
+      try {
+        const cookieStore = await cookies();
+        userId = cookieStore.get('voice_agent_user_id')?.value || null;
+      } catch (e) {
+        // ignore cookie read error
+      }
+      if (!userId) {
+        userId = `user_${Math.floor(Math.random() * 1_000_000_000)}`;
+      }
+    }
+
     const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
+    const participantIdentity = userId;
     const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
 
     const participantToken = await createParticipantToken(
@@ -66,11 +82,12 @@ export async function POST(req: Request) {
       'Cache-Control': 'no-store',
     });
     return NextResponse.json(data, { headers });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error);
-      return new NextResponse(error.message, { status: 500 });
-    }
+  } catch (error: any) {
+    console.error('Error generating LiveKit token:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to generate token' },
+      { status: 500 }
+    );
   }
 }
 

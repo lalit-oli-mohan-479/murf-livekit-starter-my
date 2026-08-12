@@ -52,8 +52,97 @@ class Assistant(Agent):
     #
     #     return "sunny with a temperature of 70 degrees."
 
+    @function_tool
+    async def create_escalation(
+        self,
+        ctx: RunContext,
+        reason_category: str,
+        caller_name: str,
+        contact_method: str,
+        issue_summary: str,
+        steps_already_taken: str,
+        urgency: str,
+        caller_language: str,
+        consent_given: bool,
+    ) -> str:
+        """Use this tool to create a human support escalation request when a situation requires human help (such as reported fraud/security incidents or complex disputes/policy exceptions).
+
+        CRITICAL: You MUST get explicit consent from the user BEFORE calling this tool!
+
+        Args:
+            reason_category: The category of human help needed. One of: 'Fraud/Security Incident' or 'Complex Financial Dispute/Account Issue'
+            caller_name: The name of the caller needing human help
+            contact_method: The caller's preferred follow-up method (e.g. 'Phone Callback', 'SMS', 'Branch Visit', 'Email')
+            issue_summary: Concise summary of what happened. DO NOT include sensitive passwords, PINs, OTPs, or bank account numbers!
+            steps_already_taken: What advice or checks the agent already performed
+            urgency: Urgency level of the request ('Low', 'Medium', 'High', 'Emergency')
+            caller_language: Caller's preferred spoken language ('Hindi', 'English', 'Hinglish')
+            consent_given: Boolean indicating if the caller explicitly gave permission to create and send this request to human support.
+        """
+        logger.info(f"create_escalation called for user: {self.user_id}, consent: {consent_given}, reason: {reason_category}")
+        if not consent_given:
+            return "Escalation request cancelled. Permission was not granted by the caller."
+
+        rec = db.create_escalation_record(
+            user_id=self.user_id,
+            caller_name=caller_name,
+            contact_method=contact_method,
+            reason_category=reason_category,
+            issue_summary=issue_summary,
+            steps_already_taken=steps_already_taken,
+            urgency=urgency,
+            caller_language=caller_language,
+        )
+
+        await self._publish_tool_data("human_help_request", rec)
+
+        ref = rec.get("reference_id", "ESC-99999")
+        status_msg = "updated existing open ticket" if rec.get("is_duplicate") else "created new ticket"
+
+        return (
+            f"Successfully {status_msg} for human support. "
+            f"Reference ID: {ref}. "
+            f"Priority Level: {rec.get('urgency')}. "
+            f"Preferred Contact Method: {contact_method}. "
+            f"Please inform the caller their Reference ID is {ref} and our human support team will follow up via {contact_method}."
+        )
+
+    @function_tool
+    async def check_escalation_status(self, ctx: RunContext, reference_id: str) -> str:
+        """Use this tool when a caller asks about the status of their existing human support request. They will provide a reference ID like 'ESC-12345'.
+
+        Args:
+            reference_id: The escalation reference ID (e.g. 'ESC-12345')
+        """
+        logger.info(f"check_escalation_status called for ref: {reference_id}")
+        esc = db.lookup_escalation_by_ref(reference_id.strip().upper())
+        if not esc:
+            return f"No escalation ticket found with reference ID '{reference_id}'. Please verify the ID and try again."
+
+        status = esc.get("status", "Unknown")
+        category = esc.get("reason_category", "N/A")
+        urgency = esc.get("urgency", "N/A")
+        created = esc.get("created_at", "N/A")
+
+        await self._publish_tool_data("escalation_status_check", {
+            "reference_id": esc["reference_id"],
+            "caller_name": esc["caller_name"],
+            "reason_category": category,
+            "urgency": urgency,
+            "status": status,
+            "created_at": created,
+        })
+
+        return (
+            f"Escalation ticket {reference_id} status is currently: {status}. "
+            f"Category: {category}. Urgency: {urgency}. "
+            f"Created on: {created}. "
+            f"Please inform the caller of the current status."
+        )
+
 
 server = AgentServer()
+
 
 
 def prewarm(proc: JobProcess):

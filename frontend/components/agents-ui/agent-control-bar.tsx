@@ -373,8 +373,10 @@ export function AgentControlBar({
               pressed={isChatOpen || isChatOpenUncontrolled}
               aria-label="Toggle transcript"
               onPressedChange={(state) => {
-                if (!onIsChatOpenChange) setIsChatOpenUncontrolled(state);
-                else onIsChatOpenChange(state);
+                setIsChatOpenUncontrolled(state);
+                if (onIsChatOpenChange) {
+                  onIsChatOpenChange(state);
+                }
               }}
               className={agentTrackToggleVariants({
                 variant: variant === 'outline' ? 'outline' : 'default',

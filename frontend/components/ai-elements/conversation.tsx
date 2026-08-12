@@ -11,7 +11,7 @@ export type ConversationProps = ComponentProps<typeof StickToBottom>;
 
 export const Conversation = ({ className, ...props }: ConversationProps) => (
   <StickToBottom
-    className={cn('relative flex-1 overflow-y-hidden', className)}
+    className={cn('relative flex-1 overflow-y-auto', className)}
     initial="smooth"
     resize="smooth"
     role="log"
@@ -66,14 +66,30 @@ export const ConversationScrollButton = ({
 }: ConversationScrollButtonProps) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
 
-  const handleScrollToBottom = useCallback(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
+  const handleScrollToBottom = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        scrollToBottom();
+      } catch (err) {
+        // fallback smooth scroll
+        const container = (e.currentTarget as HTMLElement).closest('.overflow-y-auto, .overflow-y-hidden, [role="log"]');
+        if (container) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }
+      }
+    },
+    [scrollToBottom]
+  );
 
   return (
     !isAtBottom && (
       <Button
-        className={cn('absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full', className)}
+        className={cn(
+          'absolute bottom-6 left-[50%] z-50 translate-x-[-50%] rounded-full shadow-xl border border-primary/40 bg-background/95 hover:bg-accent cursor-pointer',
+          className
+        )}
         onClick={handleScrollToBottom}
         size="icon"
         type="button"
