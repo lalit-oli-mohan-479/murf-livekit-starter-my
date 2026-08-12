@@ -50,16 +50,14 @@ export async function POST(req: Request) {
     const { searchParams } = new URL(req.url);
     let userId = searchParams.get('userId');
     if (!userId) {
-      const cookieStore = await cookies();
-      userId = cookieStore.get('voice_agent_user_id')?.value || null;
+      try {
+        const cookieStore = await cookies();
+        userId = cookieStore.get('voice_agent_user_id')?.value || null;
+      } catch (e) {
+        // ignore cookie read error
+      }
       if (!userId) {
         userId = `user_${Math.floor(Math.random() * 1_000_000_000)}`;
-        cookieStore.set('voice_agent_user_id', userId, {
-          maxAge: 60 * 60 * 24 * 365, // 1 year
-          path: '/',
-          httpOnly: true,
-          sameSite: 'strict',
-        });
       }
     }
 
@@ -84,11 +82,12 @@ export async function POST(req: Request) {
       'Cache-Control': 'no-store',
     });
     return NextResponse.json(data, { headers });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error);
-      return new NextResponse(error.message, { status: 500 });
-    }
+  } catch (error: any) {
+    console.error('Error generating LiveKit token:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to generate token' },
+      { status: 500 }
+    );
   }
 }
 

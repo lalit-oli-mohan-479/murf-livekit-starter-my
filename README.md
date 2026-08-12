@@ -6,14 +6,16 @@
 
 ---
 
-## 🌟 What We Have Built (Days 1 – 6 Progress)
+## 🌟 What We Have Built (Days 1 – 7 Progress)
 
-Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, while proactively placing outbound SIP reminder calls for approaching government scheme deadlines!
+Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, places proactive outbound SIP reminder calls, and seamlessly escalates complex disputes & cyber fraud claims to human support desks with SQLite persistence and real-time portal tracking!
 
 ```
 Inbound Flow:  User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf Falcon TTS] → audio → User hears
                                             ↓
                                [Tools & SQLite Memory] → [LiveKit Data Channel] → 📱 UI Card Push
+
+Escalation:   High-Risk Claim → [Explicit Consent] → [PII Redaction] → [SQLite Ticket ESC-XXXXX] → 📋 Support Portal & Webhook
 
 Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone → [Gated Identity Gate] → 📊 [SQLite Call Log & Retry]
 ```
@@ -70,9 +72,21 @@ Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone �
 - **CSV Batch Campaign Management**:
   - Added support for loading target phone numbers, customer names, scheme details, and application deadlines directly from CSV files (`customers.csv`).
 - **Telephony Outcome Engine & Retry Logic**:
-  - Defined outcome handling for `NO_ANSWER`, `BUSY`, `VOICEMAIL`, `WRONG_PERSON`, `EARLY_HANGUP`, and `COMPLETED` with automated retry recommendations (e.g. retry Busy in 15 mins, No Answer in 2 hours).
+  - Defined outcome handling for `NO_ANSWER`, `BUSY`, `VOICEMAIL`, `WRONG_PERSON`, `EARLY_HANGUP`, and `COMPLETED` with automated retry recommendations.
 - **SQLite Audit & Duration Persistence**:
   - Automatically records call telemetry into SQLite (`data.db` -> table `outbound_calls`), tracking recipient details, exact call duration in seconds, outcome status, and retry recommendations.
+
+#### 🔹 Day 7 — Human Escalation Protocol, SQLite Ticket Tracking & Support Portal 🛡️
+- **Human Escalation System (`create_escalation`)**:
+  - Automatically handles high-risk financial disputes, unauthorized cyber fraud claims, and complex account freeze issues by generating unique Reference IDs (e.g. `ESC-34036`).
+- **Mandatory Consent & PII Redaction**:
+  - Enforces explicit consent asking before escalating and automatically redacts passwords, OTPs, PINs, or 16-digit card numbers.
+- **Voice Ticket Status Lookup (`check_escalation_status`)**:
+  - Allows callers to query their escalation status directly over voice (e.g., *"ESC-34036 ka status kya hai?"*).
+- **Web Complaint Support Portal & API**:
+  - Added Next.js 15 API (`/api/escalations`) and an interactive **Jan Dhan Support & Escalation Portal** modal with reference ID search and visual AI Non-Decision Boundary documentation.
+- **Background Discord Webhook Integration**:
+  - Asynchronously posts rich embed alerts to Discord support channels without blocking the voice agent's event loop.
 
 ---
 
