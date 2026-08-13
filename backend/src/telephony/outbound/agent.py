@@ -42,7 +42,7 @@ from livekit.agents import (
 from livekit.plugins import deepgram, google, murf, noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from src.db import init_db, log_outbound_call
+from src.db import init_db, log_outbound_call, log_call_session
 from src.telephony.outbound.prompts import (
     build_call_context_prompt,
     build_greeting,
@@ -125,6 +125,28 @@ def record_call_outcome(phone_number: str, outcome: str, customer_name: str = ""
         outcome=outcome,
         duration_seconds=duration_seconds,
         retry_recommended=rule["retry_recommended"],
+    )
+
+    sip_outcome = "success" if outcome == "COMPLETED" else "failed"
+    fail_reason_map = {
+        "NO_ANSWER": "No Answer / Missed Call",
+        "BUSY": "Line Busy",
+        "VOICEMAIL": "Answering Machine Reached",
+        "EARLY_HANGUP": "Incomplete Task / Early Hangup",
+        "WRONG_PERSON": "Wrong Person Reached",
+        "COMPLETED": "None",
+    }
+    fail_reason = fail_reason_map.get(outcome, "Incomplete Task")
+
+    log_call_session(
+        session_id=f"sip_{phone_number}_{int(time.time())}",
+        user_id=phone_number,
+        caller_name=customer_name or "SIP Caller",
+        channel="SIP",
+        outcome=sip_outcome,
+        failure_reason=fail_reason,
+        duration_seconds=duration_seconds,
+        tools_used=["outbound_scheme_reminder"],
     )
 
     log_msg = (

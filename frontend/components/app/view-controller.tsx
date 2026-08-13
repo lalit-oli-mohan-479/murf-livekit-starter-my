@@ -7,9 +7,10 @@ import { useSessionContext } from '@livekit/components-react';
 import type { AppConfig } from '@/app-config';
 import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
 import { WelcomeView } from '@/components/app/welcome-view';
-import { Loader2, PhoneOff, RefreshCw, CheckCircle2, Shield, ClipboardList } from 'lucide-react';
+import { Loader2, PhoneOff, RefreshCw, CheckCircle2, Shield, ClipboardList, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ComplaintTrackerModal } from '@/components/agents-ui/complaint-tracker-modal';
+import { CallAnalyticsDashboard } from '@/components/agents-ui/call-analytics-dashboard';
 
 const MotionWelcomeView = motion.create(WelcomeView);
 const MotionSessionView = motion.create(AgentSessionView_01);
@@ -38,6 +39,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [showLowBandwidthNotice, setShowLowBandwidthNotice] = useState(false);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   const isConnectingState = connectionState === 'connecting' || isCheckingMic;
 
@@ -109,6 +111,15 @@ export function ViewController({ appConfig }: ViewControllerProps) {
       
       {/* Top Floating Action Header */}
       <div className="fixed top-4 left-4 z-50 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setIsAnalyticsOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-xs font-extrabold shadow-lg shadow-amber-500/10 backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+        >
+          <BarChart3 className="h-4 w-4 text-amber-400 animate-pulse" />
+          <span>📊 Call Analytics Dashboard</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setIsPortalOpen(true)}
@@ -235,6 +246,9 @@ export function ViewController({ appConfig }: ViewControllerProps) {
 
       {/* Complaint Tracker & Non-Decision Scenarios Portal Modal */}
       <ComplaintTrackerModal isOpen={isPortalOpen} onClose={() => setIsPortalOpen(false)} />
+      
+      {/* Day 8 Call Analytics Dashboard Modal */}
+      <CallAnalyticsDashboard isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
     </div>
   );
 }

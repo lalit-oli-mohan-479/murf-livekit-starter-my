@@ -41,6 +41,11 @@ class Assistant(Agent):
         super().__init__(instructions=SYSTEM_PROMPT)
         self.user_id = user_id
         self._room = None
+        self.tools_executed = []
+
+    def _track_tool(self, tool_name: str) -> None:
+        if tool_name not in self.tools_executed:
+            self.tools_executed.append(tool_name)
 
     async def _publish_tool_data(self, tool_type: str, data: dict) -> None:
         """Push structured tool data to the frontend via LiveKit data channel."""
@@ -153,6 +158,7 @@ class Assistant(Agent):
         Args:
             scheme_name: The name or keyword of the government scheme to look up (e.g., 'Jan Dhan', 'Sukanya', 'Mudra', 'PM Kisan')
         """
+        self._track_tool("lookup_govt_scheme")
         logger.info(f"lookup_govt_scheme called for: {scheme_name}")
         try:
             data_path = Path(__file__).parent / "schemes_data.json"
@@ -207,6 +213,7 @@ class Assistant(Agent):
     @function_tool
     async def get_gold_silver_price(self, ctx: RunContext) -> str:
         """Use this tool when a user asks about the current price of gold or silver in India. This fetches live market prices in Indian Rupees per gram."""
+        self._track_tool("get_gold_silver_price")
         logger.info("get_gold_silver_price tool called")
         api_key = os.environ.get("GOLD_API_KEY", "")
 
@@ -305,6 +312,7 @@ class Assistant(Agent):
             facts: A dictionary of key-value facts (e.g., schemes checked, eligibility answers). DO NOT store account or ID numbers!
             consent_given: Boolean indicating if the caller explicitly gave consent to save their details.
         """
+        self._track_tool("save_caller_info")
         logger.info(f"save_caller_info tool called for user: {self.user_id}, consent: {consent_given}")
         if not consent_given:
             return "Cannot save caller information without explicit consent from the user."
@@ -315,6 +323,7 @@ class Assistant(Agent):
     @function_tool
     def forget_caller(self) -> str:
         """Use this tool to delete the current caller's profile and delete all data about them from the database."""
+        self._track_tool("forget_caller")
         logger.info(f"forget_caller tool called for user: {self.user_id}")
         deleted = db.delete_caller(self.user_id)
         if deleted:
@@ -348,6 +357,7 @@ class Assistant(Agent):
             caller_language: Caller's preferred spoken language ('Hindi', 'English', 'Hinglish')
             consent_given: Boolean indicating if the caller explicitly gave permission to create and send this request to human support.
         """
+        self._track_tool("create_escalation")
         logger.info(f"create_escalation called for user: {self.user_id}, consent: {consent_given}, reason: {reason_category}")
         if not consent_given:
             return "Escalation request cancelled. Permission was not granted by the caller."
@@ -424,8 +434,10 @@ server.setup_fnc = prewarm
 
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
+    session_start_time = datetime.now()
+    session_id = f"sess_{int(session_start_time.timestamp())}_{uuid.uuid4().hex[:6]}"
+
     # Logging setup
-    # Add any other context you want in all log entries here
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
@@ -435,101 +447,105 @@ async def my_agent(ctx: JobContext):
 
     # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=deepgram.STT(model="nova-3", language="multi"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=google.LLM(
-                model="gemini-3.5-flash-lite",
-            ),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
+            model="gemini-3.5-flash-lite",
+        ),
         tts=murf.TTS(
-                voice="Samar", 
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
+            voice="Samar", 
+            style="Conversation",
+            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+            text_pacing=True
+        ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
+    def log_final_outcome():
+        duration = (datetime.now() - session_start_time).total_seconds()
+        tools_list = list(getattr(assistant, "tools_executed", []))
+        caller_info = db.lookup_caller(assistant.user_id) if hasattr(assistant, "user_id") else None
+        caller_name = caller_info.get("name") if (caller_info and isinstance(caller_info, dict)) else "Browser Caller"
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
+        # Day 8 Objective: A call is SUCCESSFUL if the user's inquiry is resolved (i.e. at least 1 core tool executed or session > 30s)
+        # Otherwise recorded as FAILED (Incomplete Task / Early Hangup).
+        if len(tools_list) > 0:
+            outcome = "success"
+            failure_reason = "None"
+        elif duration >= 30.0:
+            outcome = "success"
+            failure_reason = "None"
+        else:
+            outcome = "failed"
+            failure_reason = "Incomplete Task / Early Hangup"
 
-    # Start the session, which initializes the voice pipeline and warms up the models
-    await session.start(
-        agent=assistant,
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=lambda params: (
-                    noise_cancellation.BVCTelephony()
-                    if params.participant.kind
-                    == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-                    else noise_cancellation.BVC()
+        db.log_call_session(
+            session_id=session_id,
+            user_id=getattr(assistant, "user_id", "Anonymous"),
+            caller_name=caller_name,
+            channel="Browser",
+            outcome=outcome,
+            failure_reason=failure_reason,
+            duration_seconds=duration,
+            tools_used=tools_list,
+        )
+
+    @ctx.room.on("participant_disconnected")
+    def on_participant_disconnected(participant: rtc.RemoteParticipant):
+        logger.info(f"Remote participant disconnected: {participant.identity}. Logging call outcome.")
+        log_final_outcome()
+
+    try:
+        await session.start(
+            agent=assistant,
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                audio_input=room_io.AudioInputOptions(
+                    noise_cancellation=lambda params: (
+                        noise_cancellation.BVCTelephony()
+                        if params.participant.kind
+                        == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+                        else noise_cancellation.BVC()
+                    ),
                 ),
             ),
-        ),
-    )
+        )
 
-    # Join the room and connect to the user
-    await ctx.connect()
+        await ctx.connect()
 
-    # Find the remote participant identity (user_id) after connection
-    user_id = "default_user"
-    for _ in range(20):
-        if ctx.room.remote_participants:
-            user_id = list(ctx.room.remote_participants.values())[0].identity
-            logger.info(f"Connected to remote participant. Found identity: {user_id}")
-            break
-        await asyncio.sleep(0.1)
+        user_id = "default_user"
+        for _ in range(20):
+            if ctx.room.remote_participants:
+                user_id = list(ctx.room.remote_participants.values())[0].identity
+                logger.info(f"Connected to remote participant. Found identity: {user_id}")
+                break
+            await asyncio.sleep(0.1)
 
-    # Update assistant's user_id dynamically with Session Salt prefix
-    assistant.user_id = f"{SESSION_SALT}_{user_id}"
-    assistant._room = ctx.room  # Store room ref for publishing tool data to frontend
-    logger.info(f"Updated assistant user_id to: {assistant.user_id}")
+        assistant.user_id = f"{SESSION_SALT}_{user_id}"
+        assistant._room = ctx.room  # Store room ref for publishing tool data to frontend
+        logger.info(f"Updated assistant user_id to: {assistant.user_id}")
 
-    # Dynamic startup greeting based on caller's details
-    caller = db.lookup_caller(assistant.user_id)
-    if caller and caller.get("name"):
-        name = caller.get("name")
-        lang = str(caller.get("language_preference")).lower()
-        last_date = caller.get("last_interaction") or "recently"
-        facts = caller.get("facts") or {}
-        last_topic = facts.get("topic") or facts.get("last_topic") or "government schemes"
-        
-        if lang == "english":
-            welcome_msg = f"Welcome back {name}! Last time on {last_date} we discussed {last_topic}. Did you apply or do you need help with anything else today?"
+        caller = db.lookup_caller(assistant.user_id)
+        if caller and caller.get("name"):
+            name = caller.get("name")
+            lang = str(caller.get("language_preference")).lower()
+            last_date = caller.get("last_interaction") or "recently"
+            facts = caller.get("facts") or {}
+            last_topic = facts.get("topic") or facts.get("last_topic") or "government schemes"
+            
+            if lang == "english":
+                welcome_msg = f"Welcome back {name}! Last time on {last_date} we discussed {last_topic}. Did you apply or do you need help with anything else today?"
+            else:
+                welcome_msg = f"स्वागत है वापस {name} जी! पिछली बार {last_date} को हमने {last_topic} के बारे में बात की थी। क्या आपने आवेदन किया या आज मैं आपकी कोई और सहायता कर सकता हूँ?"
+            
+            await session.say(welcome_msg, allow_interruptions=True)
         else:
-            welcome_msg = f"स्वागत है वापस {name} जी! पिछली बार {last_date} को हमने {last_topic} के बारे में बात की थी। क्या आपने आवेदन किया या आज मैं आपकी कोई और सहायता कर सकता हूँ?"
-        
-        await session.say(welcome_msg, allow_interruptions=True)
-    else:
-        # New caller
-        welcome_msg = "नमस्ते! जन धन सेवा में आपका स्वागत है। Hello! Welcome to Jan Dhan Seva. How can I help you today?"
-        await session.say(welcome_msg, allow_interruptions=True)
+            welcome_msg = "नमस्ते! जन धन सेवा में आपका स्वागत है। Hello! Welcome to Jan Dhan Seva. How can I help you today?"
+            await session.say(welcome_msg, allow_interruptions=True)
+            
+    finally:
+        log_final_outcome()
 
 
 if __name__ == "__main__":

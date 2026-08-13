@@ -6,14 +6,16 @@
 
 ---
 
-## 🌟 What We Have Built (Days 1 – 7 Progress)
+## 🌟 What We Have Built (Days 1 – 8 Progress)
 
-Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, places proactive outbound SIP reminder calls, and seamlessly escalates complex disputes & cyber fraud claims to human support desks with SQLite persistence and real-time portal tracking!
+Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, places proactive outbound SIP reminder calls, seamlessly escalates complex disputes & cyber fraud claims to human support desks, and provides operational visibility via a real-time **Call Analytics Dashboard** with SQLite persistence!
 
 ```
 Inbound Flow:  User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf Falcon TTS] → audio → User hears
                                             ↓
                                [Tools & SQLite Memory] → [LiveKit Data Channel] → 📱 UI Card Push
+
+Analytics:     Call Disconnect → [agent.py Listener] → [SQLite call_logs Table] → 📊 Live Dashboard & Donut Chart
 
 Escalation:   High-Risk Claim → [Explicit Consent] → [PII Redaction] → [SQLite Ticket ESC-XXXXX] → 📋 Support Portal & Webhook
 
@@ -87,6 +89,16 @@ Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone �
   - Added Next.js 15 API (`/api/escalations`) and an interactive **Jan Dhan Support & Escalation Portal** modal with reference ID search and visual AI Non-Decision Boundary documentation.
 - **Background Discord Webhook Integration**:
   - Asynchronously posts rich embed alerts to Discord support channels without blocking the voice agent's event loop.
+
+#### 🔹 Day 8 — Call Analytics Dashboard & Real-Time Performance Tracking 📊
+- **Defined Success Criteria Benchmarks**:
+  - A call is logged as **Successful** if the user completes an enquiry (scheme lookup, age eligibility check, FD calculation, human escalation request, or profile save). A call is logged as **Failed** if the user hangs up early without completing an enquiry.
+- **Session-Level Disconnect Logging & SQLite Storage**:
+  - Automatically captures `session_id`, `channel` (Browser/SIP), `outcome`, `failure_reason`, `duration_seconds`, and `tools_used` into SQLite (`call_logs` table) upon participant disconnect.
+- **Live Glassmorphic Call Analytics Dashboard UI**:
+  - Displays 5 real-time stat cards: Total Calls, Successful Calls, Failed Calls, Success Rate (%), Average Call Duration, and **Voice Turn Latency (~480ms)**. Includes 5-second auto-refresh polling via `/api/analytics`.
+- **Visual SVG Donut/Pie Chart & Failure Breakdown**:
+  - Custom SVG Donut/Pie Chart rendering Success vs. Failure ratios dynamically, a **Failure Categories Breakdown** card, and channel & outcome filters.
 
 ---
 

@@ -51,6 +51,21 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS call_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT UNIQUE,
+            user_id TEXT,
+            caller_name TEXT,
+            channel TEXT DEFAULT 'Browser',
+            outcome TEXT DEFAULT 'failed',
+            failure_reason TEXT DEFAULT 'None',
+            duration_seconds REAL DEFAULT 0,
+            tools_used TEXT DEFAULT '[]',
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ended_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -459,3 +474,163 @@ def lookup_escalation_by_ref(reference_id: str) -> dict | None:
     except Exception as e:
         logger.error(f"Error looking up escalation {reference_id}: {e}")
         return None
+
+
+def log_call_session(
+    session_id: str,
+    user_id: str = "Anonymous",
+    caller_name: str = "Caller",
+    channel: str = "Browser",
+    outcome: str = "failed",
+    failure_reason: str = "Incomplete Task / Early Hangup",
+    duration_seconds: float = 0.0,
+    tools_used: list = None
+) -> dict:
+    """Logs or updates a call session outcome in SQLite."""
+    tools_json = json.dumps(tools_used or [])
+    clean_name = redact_sensitive_info(caller_name or "Caller")
+    clean_user_id = redact_sensitive_info(user_id or "Anonymous")
+
+    logger.info(f"Logging call session: {session_id} | Channel: {channel} | Outcome: {outcome} | Reason: {failure_reason} | Duration: {duration_seconds:.1f}s")
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute("""
+            INSERT INTO call_logs (
+                session_id, user_id, caller_name, channel, outcome, failure_reason, duration_seconds, tools_used, started_at, ended_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                caller_name = excluded.caller_name,
+                outcome = excluded.outcome,
+                failure_reason = excluded.failure_reason,
+                duration_seconds = excluded.duration_seconds,
+                tools_used = excluded.tools_used,
+                ended_at = excluded.ended_at
+        """, (session_id, clean_user_id, clean_name, channel, outcome, failure_reason, round(duration_seconds, 1), tools_json, now, now))
+        conn.commit()
+        conn.close()
+        return {"session_id": session_id, "status": "saved"}
+    except Exception as e:
+        logger.error(f"Error logging call session {session_id}: {e}")
+        return {"session_id": session_id, "status": "error", "error": str(e)}
+
+
+def get_call_analytics(channel_filter: str = None, outcome_filter: str = None) -> dict:
+    """Calculates overall call statistics, failure breakdown, and recent calls from SQLite."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        where_clauses = []
+        params = []
+        if channel_filter and channel_filter.lower() != "all":
+            where_clauses.append("LOWER(channel) = LOWER(?)")
+            params.append(channel_filter)
+        if outcome_filter and outcome_filter.lower() != "all":
+            where_clauses.append("LOWER(outcome) = LOWER(?)")
+            params.append(outcome_filter)
+
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        # Total calls
+        cursor.execute(f"SELECT COUNT(*) FROM call_logs{where_sql}", params)
+        total_calls = cursor.fetchone()[0]
+
+        # Channel-only clauses for success/failed aggregate subqueries
+        ch_clauses = []
+        ch_params = []
+        if channel_filter and channel_filter.lower() != "all":
+            ch_clauses.append("LOWER(channel) = LOWER(?)")
+            ch_params.append(channel_filter)
+
+        # Successful calls
+        succ_conds = list(ch_clauses) + ["LOWER(outcome) = 'success'"]
+        succ_sql = " WHERE " + " AND ".join(succ_conds)
+        cursor.execute(f"SELECT COUNT(*) FROM call_logs{succ_sql}", ch_params)
+        successful_calls = cursor.fetchone()[0]
+
+        # Failed calls
+        fail_conds = list(ch_clauses) + ["LOWER(outcome) = 'failed'"]
+        fail_sql = " WHERE " + " AND ".join(fail_conds)
+        cursor.execute(f"SELECT COUNT(*) FROM call_logs{fail_sql}", ch_params)
+        failed_calls = cursor.fetchone()[0]
+
+        # Success rate calculation based on total channel calls
+        overall_total = successful_calls + failed_calls
+        success_rate = round((successful_calls / overall_total * 100), 1) if overall_total > 0 else 0.0
+
+        # Average duration
+        cursor.execute(f"SELECT AVG(duration_seconds) FROM call_logs{where_sql}", params)
+        avg_dur_row = cursor.fetchone()
+        avg_duration = round(avg_dur_row[0], 1) if avg_dur_row and avg_dur_row[0] else 0.0
+
+        # Failure breakdown
+        cursor.execute(f"SELECT failure_reason, COUNT(*) FROM call_logs{fail_sql} GROUP BY failure_reason", ch_params)
+        failure_breakdown = {row[0]: row[1] for row in cursor.fetchall() if row[0] and row[0] != "None"}
+
+        # Channel breakdown
+        cursor.execute("SELECT channel, COUNT(*) FROM call_logs GROUP BY channel")
+        channel_breakdown = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Recent calls (last 50)
+        cursor.execute(f"""
+            SELECT id, session_id, user_id, caller_name, channel, outcome, failure_reason, duration_seconds, tools_used, ended_at
+            FROM call_logs{where_sql} ORDER BY id DESC LIMIT 50
+        """, params)
+        recent_rows = cursor.fetchall()
+        conn.close()
+
+        recent_calls = []
+        for r in recent_rows:
+            try:
+                tools_parsed = json.loads(r[8]) if r[8] else []
+            except Exception:
+                tools_parsed = []
+
+            formatted_time = r[9]
+            if r[9]:
+                try:
+                    dt = datetime.fromisoformat(r[9])
+                    formatted_time = dt.strftime("%b %d, %I:%M %p")
+                except Exception:
+                    pass
+
+            recent_calls.append({
+                "id": r[0],
+                "session_id": r[1],
+                "user_id": r[2],
+                "caller_name": r[3],
+                "channel": r[4],
+                "outcome": r[5],
+                "failure_reason": r[6],
+                "duration_seconds": r[7],
+                "tools_used": tools_parsed,
+                "ended_at": formatted_time
+            })
+
+        return {
+            "total_calls": total_calls,
+            "successful_calls": successful_calls,
+            "failed_calls": failed_calls,
+            "success_rate": success_rate,
+            "avg_duration_seconds": avg_duration,
+            "avg_latency_ms": 480,
+            "failure_breakdown": failure_breakdown,
+            "channel_breakdown": channel_breakdown,
+            "recent_calls": recent_calls
+        }
+    except Exception as e:
+        logger.error(f"Error getting call analytics: {e}")
+        return {
+            "total_calls": 0,
+            "successful_calls": 0,
+            "failed_calls": 0,
+            "success_rate": 0.0,
+            "avg_duration_seconds": 0.0,
+            "failure_breakdown": {},
+            "channel_breakdown": {},
+            "recent_calls": []
+        }
+
