@@ -9,15 +9,18 @@ if hasattr(sys.stdout, "reconfigure"):
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
 
+
 def print_db():
     if not os.path.exists(DB_PATH):
         print(f"Database file does not exist at {DB_PATH} yet.")
         return
-    
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT user_id, name, language_preference, facts, last_interaction FROM callers")
+        cursor.execute(
+            "SELECT user_id, name, language_preference, facts, last_interaction FROM callers"
+        )
         rows = cursor.fetchall()
         if not rows:
             print("No callers saved yet.")
@@ -39,7 +42,9 @@ def print_db():
 
         # Print Escalations
         try:
-            cursor.execute("SELECT reference_id, caller_name, contact_method, reason_category, issue_summary, steps_already_taken, urgency, caller_language, status, created_at FROM escalations ORDER BY id DESC")
+            cursor.execute(
+                "SELECT reference_id, caller_name, contact_method, reason_category, issue_summary, steps_already_taken, urgency, caller_language, status, created_at FROM escalations ORDER BY id DESC"
+            )
             esc_rows = cursor.fetchall()
             print("\n" + "=" * 60)
             print("       HUMAN HELP ESCALATIONS (HUMAN SUPPORT TICKETS)       ")
@@ -66,6 +71,6 @@ def print_db():
     finally:
         conn.close()
 
+
 if __name__ == "__main__":
     print_db()
-

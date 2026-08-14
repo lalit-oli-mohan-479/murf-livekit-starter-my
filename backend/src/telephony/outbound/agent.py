@@ -57,8 +57,6 @@ TRANSFER_TO_NUMBER = os.getenv("TRANSFER_TO_NUMBER")
 CALLEE_IDENTITY = "phone-user"
 
 
-
-
 # Ensure SQLite database tables are initialized
 init_db()
 
@@ -67,7 +65,13 @@ CALL_LOGGED = set()
 CALL_ANSWERED = set()
 
 
-def record_call_outcome(phone_number: str, outcome: str, customer_name: str = "", scheme_name: str = "", details: str = "") -> dict:
+def record_call_outcome(
+    phone_number: str,
+    outcome: str,
+    customer_name: str = "",
+    scheme_name: str = "",
+    details: str = "",
+) -> dict:
     """Classify call outcome, calculate call duration, log to SQLite, and return retry rule."""
     if phone_number in CALL_LOGGED:
         return {}
@@ -116,7 +120,7 @@ def record_call_outcome(phone_number: str, outcome: str, customer_name: str = ""
     }
 
     rule = retry_rules.get(outcome, retry_rules["NO_ANSWER"])
-    
+
     # Always save call outcome and duration to SQLite database
     log_outbound_call(
         phone_number=phone_number,
@@ -194,7 +198,11 @@ class OutboundSchemeAgent(Agent):
                     play_dialtone=True,
                 )
             )
-            record_call_outcome(self.meta.get("phone_number", ""), "COMPLETED", "Transferred to human agent")
+            record_call_outcome(
+                self.meta.get("phone_number", ""),
+                "COMPLETED",
+                "Transferred to human agent",
+            )
         except Exception:
             logger.exception("transfer failed")
             return "The transfer did not go through. Apologize and offer a call back."
@@ -204,7 +212,9 @@ class OutboundSchemeAgent(Agent):
     @function_tool
     async def detected_answering_machine(self, context: RunContext) -> str:
         """Handle voicemail / answering machine detection behavior and retry rule."""
-        logger.info("answering machine detected — leaving brief voicemail and hanging up")
+        logger.info(
+            "answering machine detected — leaving brief voicemail and hanging up"
+        )
         record_call_outcome(
             self.meta.get("phone_number", ""),
             "VOICEMAIL",
@@ -335,9 +345,21 @@ async def outbound_agent(ctx: JobContext):
             cust_name = meta.get("customer_name", "Unknown")
             sch_name = meta.get("scheme_name", "Scheme")
             if phone_number in CALL_ANSWERED:
-                record_call_outcome(phone_number, "COMPLETED", customer_name=cust_name, scheme_name=sch_name, details="Callee completed call")
+                record_call_outcome(
+                    phone_number,
+                    "COMPLETED",
+                    customer_name=cust_name,
+                    scheme_name=sch_name,
+                    details="Callee completed call",
+                )
             else:
-                record_call_outcome(phone_number, "NO_ANSWER", customer_name=cust_name, scheme_name=sch_name, details="Call not answered / missed call")
+                record_call_outcome(
+                    phone_number,
+                    "NO_ANSWER",
+                    customer_name=cust_name,
+                    scheme_name=sch_name,
+                    details="Call not answered / missed call",
+                )
 
     greeting = build_greeting(meta)
     logger.info("dialing %s", phone_number)
@@ -360,9 +382,21 @@ async def outbound_agent(ctx: JobContext):
         cust_name = meta.get("customer_name", "Unknown")
         sch_name = meta.get("scheme_name", "Scheme")
         if "486" in sip_code or "600" in sip_code:
-            record_call_outcome(phone_number, "BUSY", customer_name=cust_name, scheme_name=sch_name, details=f"SIP {sip_code}: Line busy")
+            record_call_outcome(
+                phone_number,
+                "BUSY",
+                customer_name=cust_name,
+                scheme_name=sch_name,
+                details=f"SIP {sip_code}: Line busy",
+            )
         else:
-            record_call_outcome(phone_number, "NO_ANSWER", customer_name=cust_name, scheme_name=sch_name, details=f"SIP {sip_code}: {e.message}")
+            record_call_outcome(
+                phone_number,
+                "NO_ANSWER",
+                customer_name=cust_name,
+                scheme_name=sch_name,
+                details=f"SIP {sip_code}: {e.message}",
+            )
 
         session_started.cancel()
         ctx.shutdown()
@@ -374,4 +408,3 @@ async def outbound_agent(ctx: JobContext):
 
 if __name__ == "__main__":
     cli.run_app(server)
-
