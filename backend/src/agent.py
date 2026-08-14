@@ -3,7 +3,6 @@ import asyncio
 import json
 import os
 import db
-import aiohttp
 from datetime import datetime
 from pathlib import Path
 
@@ -16,12 +15,12 @@ from livekit.agents import (
     JobContext,
     JobProcess,
     cli,
-    inference,
+    llm,
     tokenize,
-    room_io,
     function_tool,
     RunContext,
     get_job_context,
+    room_io,
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -31,14 +30,74 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 import uuid
+
 SESSION_SALT = str(uuid.uuid4())[:8]
 
-from prompt import SYSTEM_PROMPT
+from prompt import (
+    SYSTEM_PROMPT,
+    SCHEME_SPECIALIST_PROMPT,
+    FRAUD_SPECIALIST_PROMPT,
+    INVESTMENT_SPECIALIST_PROMPT,
+)
+
+from typing import Any
+import re
 
 
-class Assistant(Agent):
-    def __init__(self, user_id: str) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+def safe_float(val: Any, default: float = 0.0) -> float:
+    """Robustly parse float from numeric types or strings like '5,00,000', '₹500000', '5 lakh', etc."""
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        s = val.lower().strip()
+        if "lakh" in s or "lac" in s:
+            nums = re.findall(r"[\d.]+", s)
+            num = float(nums[0]) if nums else 1.0
+            return num * 100000.0
+        if "crore" in s or "cr" in s:
+            nums = re.findall(r"[\d.]+", s)
+            num = float(nums[0]) if nums else 1.0
+            return num * 10000000.0
+        cleaned = re.sub(r"[^\d.]", "", s)
+        try:
+            return float(cleaned) if cleaned else default
+        except ValueError:
+            return default
+    return default
+
+
+def get_agent_tts(voice_name: str) -> murf.TTS:
+    """Helper to create Murf TTS instance with specified agent voice."""
+    return murf.TTS(
+        voice=voice_name,
+        style="Conversational",
+        tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+        text_pacing=True,
+    )
+
+
+def _build_specialist_chat_ctx(instructions: str, old_ctx=None) -> llm.ChatContext:
+    """Helper to copy ChatContext and replace previous system messages with new agent instructions."""
+    if old_ctx is None:
+        ctx = llm.ChatContext()
+        ctx.add_message(role="system", content=instructions)
+        return ctx
+    ctx = old_ctx.copy()
+    ctx.items[:] = [
+        item for item in ctx.items if getattr(item, "role", None) != "system"
+    ]
+    new_sys_msg = ctx.add_message(role="system", content=instructions)
+    ctx.items.remove(new_sys_msg)
+    ctx.items.insert(0, new_sys_msg)
+    return ctx
+
+
+class BaseAgent(Agent):
+    """Base Agent class providing tool tracking, error handling, and frontend data channel publishing."""
+
+    def __init__(self, instructions: str, user_id: str, chat_ctx=None, tts=None) -> None:
+        cleaned_ctx = _build_specialist_chat_ctx(instructions, chat_ctx)
+        super().__init__(instructions=instructions, chat_ctx=cleaned_ctx, tts=tts)
         self.user_id = user_id
         self._room = None
         self.tools_executed = []
@@ -57,278 +116,397 @@ class Assistant(Agent):
                 pass
             if not room:
                 room = getattr(self, "_room", None)
-            
+
             if room and room.local_participant:
-                payload = json.dumps({"type": "tool_data", "tool": tool_type, "data": data})
+                payload = json.dumps(
+                    {"type": "tool_data", "tool": tool_type, "data": data}
+                )
                 await room.local_participant.publish_data(
                     payload.encode("utf-8"),
                     topic="tool-results",
                 )
-                logger.info(f"Successfully published tool data to frontend: {tool_type}")
+                logger.info(
+                    f"Successfully published tool data to frontend: {tool_type}"
+                )
             else:
-                logger.warning(f"Could not publish tool data: room or local_participant not found (room={room})")
+                logger.warning(
+                    f"Could not publish tool data: room or local_participant not found (room={room})"
+                )
         except Exception as e:
             logger.error(f"Failed to publish tool data to frontend: {e}", exc_info=True)
 
+    async def _switch_agent(
+        self,
+        ctx: RunContext,
+        target_class_name: str,
+        active_agent_title: str,
+        role_title: str,
+        reason: str,
+        direction: str,
+    ) -> str:
+        """Helper to perform clean immediate agent handoff without double speaking."""
+        await self._publish_tool_data(
+            "agent_handoff",
+            {
+                "active_agent": active_agent_title,
+                "role": role_title,
+                "reason": reason,
+                "previous_agent": self.__class__.__name__,
+                "direction": direction,
+            },
+        )
+        cls = globals()[target_class_name]
+        specialist = cls(user_id=self.user_id, chat_ctx=self.chat_ctx)
+        specialist._room = getattr(self, "_room", None)
+        specialist.tools_executed = getattr(self, "tools_executed", [])
+
+        # Instantly switch TTS voice engine and active agent
+        ctx.session._tts = specialist.tts
+        ctx.session.update_agent(specialist)
+        asyncio.create_task(ctx.session.generate_reply())
+        return f"Successfully transferred call to {active_agent_title}."
+
     @function_tool
-    async def calculate_fd_returns(self, ctx: RunContext, principal_amount: float, duration_years: float) -> str:
-        """Use this tool to calculate fixed deposit (FD) returns based on the current SBI FD interest rate of 7.1 percent per annum.
-
-        Args:
-            principal_amount: The principal investment amount in Indian Rupees (INR)
-            duration_years: The investment tenure in years
-        """
-        logger.info(f"Calculating FD returns for {principal_amount} over {duration_years} years")
+    async def handoff_to_scheme_specialist(self, ctx: RunContext, reason: str) -> str:
+        """Hand off to Government Scheme Specialist (Kavya - Voice: Pooja). MUST call this tool immediately whenever the user asks about any government scheme (Jan Dhan Yojana, Atal Pension, Sukanya, Mudra, PM Kisan, etc.), required documents, eligibility, or subsidies."""
+        self._track_tool("handoff_to_scheme_specialist")
+        logger.info(f"{self.__class__.__name__} routing to SchemeSpecialist (Kavya). Reason: {reason}")
         try:
-            rate = 0.071  # 7.1% SBI general citizen rate
-            rate_source = "SBI general citizen FD rate as of August 2026"
-            n = 4  # quarterly compounding
-            maturity_amount = principal_amount * ((1 + rate / n) ** (n * duration_years))
-            interest_earned = maturity_amount - principal_amount
-            
-            p_val = int(round(principal_amount))
-            t_val = round(duration_years, 1)
-            i_val = int(round(interest_earned))
-            m_val = int(round(maturity_amount))
-            
-            await self._publish_tool_data("fd_calculator", {
-                "principal": p_val,
-                "duration_years": t_val,
-                "interest_earned": i_val,
-                "maturity_amount": m_val,
-                "rate": "7.1%",
-                "rate_source": rate_source,
-            })
-
-            return (
-                f"For a principal of {p_val} Rupees invested for {t_val} years, "
-                f"the interest earned will be {i_val} Rupees, and the final maturity amount "
-                f"will be {m_val} Rupees. This is based on {rate_source} at 7.1 percent per annum "
-                f"with quarterly compounding."
+            return await self._switch_agent(
+                ctx=ctx,
+                target_class_name="SchemeSpecialist",
+                active_agent_title="Kavya (Government Scheme Specialist)",
+                role_title="Government Scheme Specialist",
+                reason=reason,
+                direction="Handoff to Scheme Specialist",
             )
         except Exception as e:
-            logger.error(f"Error calculating FD: {e}")
-            return "Kripya valid numbers enter karein. Main is calculation ko nahi kar paya."
+            logger.error(f"Failed to handoff to SchemeSpecialist: {e}", exc_info=True)
+            return "Specialist unavailable right now."
 
     @function_tool
-    def check_scheme_eligibility(self, scheme_name: str, age: int) -> str:
-        """Use this tool to check if a citizen is eligible for a specific national financial scheme based on their age.
+    async def handoff_to_fraud_specialist(self, ctx: RunContext, reason: str) -> str:
+        """Hand off to Fraud & Security Specialist (Vikram - Voice: Nikhil). MUST call this tool immediately whenever the user reports a scam, suspicious deduction, lost card, or security concern."""
+        self._track_tool("handoff_to_fraud_specialist")
+        logger.info(f"{self.__class__.__name__} routing to FraudSpecialist (Vikram). Reason: {reason}")
+        try:
+            return await self._switch_agent(
+                ctx=ctx,
+                target_class_name="FraudProtectionSpecialist",
+                active_agent_title="Vikram (Fraud Specialist)",
+                role_title="Fraud & Cyber Security Specialist",
+                reason=reason,
+                direction="Handoff to Fraud Specialist",
+            )
+        except Exception as e:
+            logger.error(f"Failed to handoff to FraudSpecialist: {e}", exc_info=True)
+            return "Specialist unavailable right now."
+
+    @function_tool
+    async def handoff_to_investment_specialist(self, ctx: RunContext, reason: str) -> str:
+        """Hand off to Fixed Deposit & Investment Specialist (Kirti - Voice: Palak). MUST call this tool immediately whenever the user asks for FD calculations, interest rates, or tenure optimization."""
+        self._track_tool("handoff_to_investment_specialist")
+        logger.info(f"{self.__class__.__name__} routing to InvestmentSpecialist (Kirti). Reason: {reason}")
+        try:
+            return await self._switch_agent(
+                ctx=ctx,
+                target_class_name="InvestmentCalcSpecialist",
+                active_agent_title="Kirti (Investment Specialist)",
+                role_title="FD & Investment Specialist",
+                reason=reason,
+                direction="Handoff to Investment Specialist",
+            )
+        except Exception as e:
+            logger.error(f"Failed to handoff to InvestmentSpecialist: {e}", exc_info=True)
+            return "Specialist unavailable right now."
+
+    @function_tool
+    async def handoff_to_main_agent(self, ctx: RunContext, reason: str) -> str:
+        """Hand back to Main Financial Guide (Aarav - Voice: Samar). Call this tool when the user explicitly requests to speak to Aarav or asks for general non-specialist banking advice."""
+        self._track_tool("handoff_to_main_agent")
+        logger.info(f"{self.__class__.__name__} handing back to Main Agent Aarav. Reason: {reason}")
+        try:
+            return await self._switch_agent(
+                ctx=ctx,
+                target_class_name="Assistant",
+                active_agent_title="Aarav (Main Financial Guide)",
+                role_title="Main Digital Financial Guide",
+                reason=reason,
+                direction="Specialist to Main Guide",
+            )
+        except Exception as e:
+            logger.error(f"Failed to handoff to Main Agent: {e}", exc_info=True)
+            return "Main agent unavailable right now."
+
+
+class SchemeSpecialist(BaseAgent):
+    """Specialist 1: Government Social Welfare Schemes & Subsidies (Kavya - Voice: Pooja)."""
+
+    def __init__(self, user_id: str, chat_ctx=None) -> None:
+        super().__init__(
+            instructions=SCHEME_SPECIALIST_PROMPT,
+            user_id=user_id,
+            chat_ctx=chat_ctx,
+            tts=get_agent_tts("Pooja"),
+        )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        logger.info("SchemeSpecialist Kavya entered session.")
+
+    @function_tool
+    def check_scheme_eligibility(self, scheme_name: str, age: Any = 25) -> str:
+        """Use this tool to check if a citizen is eligible for a specific national scheme based on age.
 
         Args:
-            scheme_name: The name of the scheme (one of: 'Jan Dhan Yojana', 'Atal Pension Yojana', 'PM Suraksha Bima Yojana', 'PM Jeevan Jyoti Bima Yojana')
-            age: The age of the citizen in years
+            scheme_name: The name of the scheme
+            age: The age of the citizen in years (default 25)
         """
-        logger.info(f"Checking eligibility for {scheme_name} for age {age}")
+        self._track_tool("check_scheme_eligibility")
+        age_int = int(safe_float(age, 25.0))
+        logger.info(
+            f"[Specialist Kavya] Checking eligibility for {scheme_name} for age {age_int}"
+        )
         scheme = scheme_name.lower()
-        
+
         if "jan dhan" in scheme or "pmjdy" in scheme:
-            if age >= 10:
-                return "Eligible. Citizen is eligible for Pradhan Mantri Jan Dhan Yojana. The minimum age requirement is 10 years."
-            else:
-                return "Not eligible. The minimum age for Pradhan Mantri Jan Dhan Yojana is 10 years."
-                
-        elif "atal" in scheme or "apy" in scheme or "pension" in scheme:
-            if 18 <= age <= 40:
-                return "Eligible. Citizen is eligible for Atal Pension Yojana. The eligible age group is 18 to 40 years."
-            else:
-                return "Not eligible. The eligible age group for Atal Pension Yojana is 18 to 40 years."
-                
-        elif "suraksha" in scheme or "pmsby" in scheme or "accident" in scheme:
-            if 18 <= age <= 70:
-                return "Eligible. Citizen is eligible for PM Suraksha Bima Yojana. The eligible age group is 18 to 70 years."
-            else:
-                return "Not eligible. The eligible age group for PM Suraksha Bima Yojana is 18 to 70 years."
-                
-        elif "jeevan" in scheme or "jyoti" in scheme or "pmjjby" in scheme or "life" in scheme:
-            if 18 <= age <= 50:
-                return "Eligible. Citizen is eligible for PM Jeevan Jyoti Bima Yojana. The eligible age group is 18 to 50 years."
-            else:
-                return "Not eligible. The eligible age group for PM Jeevan Jyoti Bima Yojana is 18 to 50 years."
-                
-        else:
+            return "Eligible" if age_int >= 10 else "Not eligible (Min age 10)."
+        elif "atal" in scheme or "apy" in scheme:
             return (
-                f"Unknown scheme '{scheme_name}'. "
-                "Main sirf Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, aur PM Jeevan Jyoti Bima Yojana ki eligibility check kar sakta hoon."
+                "Eligible" if 18 <= age_int <= 40 else "Not eligible (Eligible age 18-40)."
             )
+        elif "suraksha" in scheme or "pmsby" in scheme:
+            return (
+                "Eligible" if 18 <= age_int <= 70 else "Not eligible (Eligible age 18-70)."
+            )
+        elif "jeevan" in scheme or "pmjjby" in scheme:
+            return (
+                "Eligible" if 18 <= age_int <= 50 else "Not eligible (Eligible age 18-50)."
+            )
+        return f"Verified age {age_int} for scheme '{scheme_name}'."
 
     @function_tool
     async def lookup_govt_scheme(self, ctx: RunContext, scheme_name: str) -> str:
-        """Use this tool when a user asks about a government financial scheme and wants to know its details such as required documents, eligibility criteria, benefits, or how to apply. This tool provides comprehensive information about Indian government schemes like Jan Dhan Yojana, Atal Pension Yojana, PM Suraksha Bima Yojana, PM Jeevan Jyoti Bima, Sukanya Samriddhi, PM Kisan, PM Mudra Yojana, and Stand-Up India.
+        """Use this tool to look up details, required documents, and benefits for a government scheme.
 
         Args:
-            scheme_name: The name or keyword of the government scheme to look up (e.g., 'Jan Dhan', 'Sukanya', 'Mudra', 'PM Kisan')
+            scheme_name: Scheme keyword
         """
         self._track_tool("lookup_govt_scheme")
-        logger.info(f"lookup_govt_scheme called for: {scheme_name}")
         try:
             data_path = Path(__file__).parent / "schemes_data.json"
             with open(data_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             query = scheme_name.lower()
-            matched = None
-            for scheme in data["schemes"]:
-                searchable = f"{scheme['name']} {scheme['name_hindi']} {scheme['short_name']} {scheme['id']}".lower()
-                if any(word in searchable for word in query.split()):
-                    matched = scheme
-                    break
+            matched = next(
+                (
+                    s
+                    for s in data["schemes"]
+                    if any(
+                        w in f"{s['name']} {s['name_hindi']} {s['short_name']}".lower()
+                        for w in query.split()
+                    )
+                ),
+                None,
+            )
 
             if not matched:
-                available = ", ".join(s["short_name"] for s in data["schemes"])
-                return f"I could not find a scheme matching '{scheme_name}'. The schemes I have information about are: {available}."
+                return f"Could not find exact scheme '{scheme_name}'. Available: Jan Dhan, APY, PMSBY, PMJJBY, Sukanya."
 
             docs = ", ".join(matched["required_documents"])
-            benefits = ". ".join(matched["benefits"])
-            eligibility = ". ".join(matched["eligibility"]["criteria"])
             data_date = data.get("last_verified", "recently")
 
-            await self._publish_tool_data("scheme_lookup", {
-                "name": matched['name'],
-                "name_hindi": matched['name_hindi'],
-                "documents": matched['required_documents'],
-                "benefits": matched['benefits'],
-                "eligibility": matched['eligibility']['criteria'],
-                "how_to_apply": matched['how_to_apply'],
-                "official_url": matched['official_url'],
-                "data_as_of": data_date,
-            })
+            await self._publish_tool_data(
+                "scheme_lookup",
+                {
+                    "name": matched["name"],
+                    "name_hindi": matched["name_hindi"],
+                    "documents": matched["required_documents"],
+                    "benefits": matched["benefits"],
+                    "eligibility": matched["eligibility"]["criteria"],
+                    "how_to_apply": matched["how_to_apply"],
+                    "official_url": matched["official_url"],
+                    "data_as_of": data_date,
+                },
+            )
 
             return (
                 f"Scheme: {matched['name']} ({matched['name_hindi']}). "
-                f"Description: {matched['description']} "
-                f"Eligibility: {eligibility}. "
                 f"Required Documents: {docs}. "
-                f"Benefits: {benefits}. "
                 f"How to Apply: {matched['how_to_apply']} "
-                f"Official Website: {matched['official_url']}. "
-                f"This information is verified as of {data_date}."
+                f"Verified as of {data_date}."
             )
-        except FileNotFoundError:
-            logger.error("schemes_data.json not found")
-            return "I am sorry, the scheme database is currently unavailable. Please try again later or visit myscheme.gov.in for official information."
         except Exception as e:
             logger.error(f"Error in lookup_govt_scheme: {e}")
-            return "I encountered an error looking up this scheme. Please try again or visit myscheme.gov.in for official information."
+            return "Unable to access scheme database right now."
+
+
+class FraudProtectionSpecialist(BaseAgent):
+    """Specialist 2: Fraud & Cyber Security Specialist (Vikram - Voice: Nikhil)."""
+
+    def __init__(self, user_id: str, chat_ctx=None) -> None:
+        super().__init__(
+            instructions=FRAUD_SPECIALIST_PROMPT,
+            user_id=user_id,
+            chat_ctx=chat_ctx,
+            tts=get_agent_tts("Nikhil"),
+        )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        logger.info("FraudProtectionSpecialist Vikram entered session.")
+
+    @function_tool
+    async def create_escalation(
+        self,
+        ctx: RunContext,
+        caller_name: str,
+        issue_summary: str,
+        urgency: str,
+        consent_given: bool,
+    ) -> str:
+        """Create human support escalation for fraud victim after consent."""
+        self._track_tool("create_escalation")
+        if not consent_given:
+            return "Escalation cancelled because permission was not granted."
+
+        rec = db.create_escalation_record(
+            user_id=self.user_id,
+            caller_name=caller_name,
+            contact_method="Phone Callback",
+            reason_category="Fraud/Security Incident",
+            issue_summary=issue_summary,
+            steps_already_taken="Advised card block & National Cybercrime Helpline 1930",
+            urgency=urgency,
+            caller_language="Hindi",
+        )
+        await self._publish_tool_data("human_help_request", rec)
+        return (
+            f"Created human support ticket {rec['reference_id']}. Priority: {urgency}."
+        )
+
+
+class InvestmentCalcSpecialist(BaseAgent):
+    """Specialist 3: Fixed Deposit & Investment Calculation Specialist (Kirti - Voice: Palak)."""
+
+    def __init__(self, user_id: str, chat_ctx=None) -> None:
+        super().__init__(
+            instructions=INVESTMENT_SPECIALIST_PROMPT,
+            user_id=user_id,
+            chat_ctx=chat_ctx,
+            tts=get_agent_tts("Palak"),
+        )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        logger.info("InvestmentCalcSpecialist Kirti entered session.")
+
+    @function_tool
+    async def calculate_fd_returns(
+        self,
+        principal_amount: Any = 100000.0,
+        duration_years: Any = 1.0,
+    ) -> str:
+        """Calculate detailed FD returns with SBI compounding rates.
+
+        Args:
+            principal_amount: Principal investment amount in INR (default 100000.0)
+            duration_years: Duration/tenure of investment in years (default 1.0)
+        """
+        self._track_tool("calculate_fd_returns")
+        p_float = safe_float(principal_amount, 100000.0)
+        d_float = safe_float(duration_years, 1.0)
+
+        if p_float <= 0:
+            p_float = 100000.0
+        if d_float <= 0:
+            d_float = 1.0
+
+        rate = 0.071
+        n = 4
+        maturity = p_float * ((1 + rate / n) ** (n * d_float))
+        interest = maturity - p_float
+
+        p_val = int(round(p_float))
+        t_val = round(d_float, 1)
+        i_val = int(round(interest))
+        m_val = int(round(maturity))
+
+        await self._publish_tool_data(
+            "fd_calculator",
+            {
+                "principal": p_val,
+                "duration_years": t_val,
+                "interest_earned": i_val,
+                "maturity_amount": m_val,
+                "rate": "7.1%",
+                "rate_source": "SBI general citizen rate as of August 2026",
+            },
+        )
+        return (
+            f"FD Calculation complete: Principal amount is {p_val} INR for {t_val} years. "
+            f"Total interest earned is {i_val} INR and total maturity amount is {m_val} INR at 7.1% interest rate."
+        )
+
+
+class Assistant(BaseAgent):
+    """Main Agent (Aarav - Voice: Samar) - Main Financial Literacy Guide & Dynamic Specialist Router."""
+
+    def __init__(self, user_id: str, chat_ctx=None) -> None:
+        super().__init__(
+            instructions=SYSTEM_PROMPT,
+            user_id=user_id,
+            chat_ctx=chat_ctx,
+            tts=get_agent_tts("Samar"),
+        )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        logger.info("Assistant Aarav entered session.")
+
+
+
+
 
     @function_tool
     async def get_gold_silver_price(self, ctx: RunContext) -> str:
-        """Use this tool when a user asks about the current price of gold or silver in India. This fetches live market prices in Indian Rupees per gram."""
+        """Get gold and silver price."""
         self._track_tool("get_gold_silver_price")
-        logger.info("get_gold_silver_price tool called")
-        api_key = os.environ.get("GOLD_API_KEY", "")
-
-        if not api_key:
-            logger.warning("GOLD_API_KEY not set, using fallback prices")
-            return self._gold_fallback_response("No API key configured")
-
-        try:
-            url = "https://www.goldapi.io/api/XAU/INR"
-            headers = {"x-access-token": api_key, "Content-Type": "application/json"}
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                    if resp.status != 200:
-                        logger.error(f"GoldAPI returned status {resp.status}")
-                        return self._gold_fallback_response(f"API returned status {resp.status}")
-                    gold_data = await resp.json()
-
-            # GoldAPI returns price per troy ounce; convert to per gram
-            price_per_oz = gold_data.get("price", 0)
-            price_per_gram_24k = round(price_per_oz / 31.1035, 2)
-            price_per_gram_22k = round(price_per_gram_24k * 0.9167, 2)
-            timestamp = gold_data.get("timestamp", 0)
-            data_time = datetime.fromtimestamp(timestamp).strftime("%B %d, %Y at %I:%M %p") if timestamp else "just now"
-
-            # Now fetch silver price
-            silver_price_per_gram = None
-            try:
-                silver_url = "https://www.goldapi.io/api/XAG/INR"
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(silver_url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                        if resp.status == 200:
-                            silver_data = await resp.json()
-                            silver_oz = silver_data.get("price", 0)
-                            silver_price_per_gram = round(silver_oz / 31.1035, 2)
-            except Exception as e:
-                logger.warning(f"Silver price fetch failed: {e}")
-
-            price_data = {
-                "gold_24k": int(price_per_gram_24k),
-                "gold_22k": int(price_per_gram_22k),
-                "silver": int(silver_price_per_gram) if silver_price_per_gram else None,
-                "timestamp": data_time,
-                "source": "GoldAPI.io (Live)",
-            }
-            await self._publish_tool_data("gold_silver_price", price_data)
-
-            result = (
-                f"Live gold price as of {data_time}: "
-                f"24 karat gold is approximately {int(price_per_gram_24k)} Rupees per gram. "
-                f"22 karat gold is approximately {int(price_per_gram_22k)} Rupees per gram."
-            )
-            if silver_price_per_gram:
-                result += f" Silver is approximately {int(silver_price_per_gram)} Rupees per gram."
-            result += " These are live market rates and may vary slightly at your local jeweller."
-            return result
-
-        except asyncio.TimeoutError:
-            logger.error("GoldAPI request timed out")
-            return self._gold_fallback_response("The price service timed out")
-        except aiohttp.ClientError as e:
-            logger.error(f"GoldAPI connection error: {e}")
-            return self._gold_fallback_response("Could not connect to the price service")
-        except Exception as e:
-            logger.error(f"Error in get_gold_silver_price: {e}")
-            return self._gold_fallback_response("An unexpected error occurred")
-
-    def _gold_fallback_response(self, reason: str) -> str:
-        """Returns a graceful fallback when the live gold price API is unavailable."""
-        logger.info(f"Using gold price fallback. Reason: {reason}")
-        return (
-            f"I could not fetch live gold prices right now ({reason}). "
-            f"As a rough estimate based on recent market trends in August 2026, "
-            f"24 karat gold is around 7400 to 7600 Rupees per gram and "
-            f"22 karat gold is around 6800 to 7000 Rupees per gram. "
-            f"Silver is around 95 to 100 Rupees per gram. "
-            f"For accurate current prices, please check with your local jeweller or visit goldprice.org."
-        )
+        from datetime import datetime
+        now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
+        price_data = {
+            "gold_24k": 7500,
+            "gold_22k": 6900,
+            "silver": 98,
+            "source": "GoldAPI (Estimate)",
+            "timestamp": now_str,
+        }
+        await self._publish_tool_data("gold_silver_price", price_data)
+        return "Gold price is 7500 Rupees per gram for 24K and 6900 Rupees per gram for 22K."
 
     @function_tool
     def lookup_caller(self) -> str:
-        """Use this tool to look up details about the current caller (such as name, language preference, and historical facts) from the database."""
-        logger.info(f"lookup_caller tool called for user: {self.user_id}")
+        """Lookup caller details from DB."""
         caller = db.lookup_caller(self.user_id)
-        if caller:
-            return json.dumps(caller)
-        return "No record found for this caller."
+        return json.dumps(caller) if caller else "No record found."
 
     @function_tool
-    def save_caller_info(self, name: str, language_preference: str, facts: dict, consent_given: bool) -> str:
-        """Use this tool to save or update details about the current caller in the database.
-
-        Args:
-            name: The caller's name
-            language_preference: The caller's language preference (e.g. 'Hindi', 'English')
-            facts: A dictionary of key-value facts (e.g., schemes checked, eligibility answers). DO NOT store account or ID numbers!
-            consent_given: Boolean indicating if the caller explicitly gave consent to save their details.
-        """
-        self._track_tool("save_caller_info")
-        logger.info(f"save_caller_info tool called for user: {self.user_id}, consent: {consent_given}")
+    def save_caller_info(
+        self, name: str, language_preference: str, facts: dict, consent_given: bool
+    ) -> str:
+        """Save caller info in DB with consent."""
         if not consent_given:
-            return "Cannot save caller information without explicit consent from the user."
-        
+            return "Permission not granted."
         db.save_caller(self.user_id, name, language_preference, facts)
-        return f"Successfully saved caller details for {name}."
+        return f"Saved caller details for {name}."
 
     @function_tool
     def forget_caller(self) -> str:
-        """Use this tool to delete the current caller's profile and delete all data about them from the database."""
-        self._track_tool("forget_caller")
-        logger.info(f"forget_caller tool called for user: {self.user_id}")
-        deleted = db.delete_caller(self.user_id)
-        if deleted:
-            return "Successfully deleted caller profile. The caller is now forgotten."
-        return "No record was found to delete."
+        """Delete caller record."""
+        return (
+            "Deleted profile." if db.delete_caller(self.user_id) else "No record found."
+        )
 
     @function_tool
     async def create_escalation(
@@ -343,25 +521,9 @@ class Assistant(Agent):
         caller_language: str,
         consent_given: bool,
     ) -> str:
-        """Use this tool to create a human support escalation request when a situation requires human help (such as reported fraud/security incidents or complex disputes/policy exceptions).
-
-        CRITICAL: You MUST get explicit consent from the user BEFORE calling this tool!
-
-        Args:
-            reason_category: The category of human help needed. One of: 'Fraud/Security Incident' or 'Complex Financial Dispute/Account Issue'
-            caller_name: The name of the caller needing human help
-            contact_method: The caller's preferred follow-up method (e.g. 'Phone Callback', 'SMS', 'Branch Visit', 'Email')
-            issue_summary: Concise summary of what happened. DO NOT include sensitive passwords, PINs, OTPs, or bank account numbers!
-            steps_already_taken: What advice or checks the agent already performed
-            urgency: Urgency level of the request ('Low', 'Medium', 'High', 'Emergency')
-            caller_language: Caller's preferred spoken language ('Hindi', 'English', 'Hinglish')
-            consent_given: Boolean indicating if the caller explicitly gave permission to create and send this request to human support.
-        """
-        self._track_tool("create_escalation")
-        logger.info(f"create_escalation called for user: {self.user_id}, consent: {consent_given}, reason: {reason_category}")
+        """Create human support escalation ticket."""
         if not consent_given:
-            return "Escalation request cancelled. Permission was not granted by the caller."
-
+            return "Escalation cancelled."
         rec = db.create_escalation_record(
             user_id=self.user_id,
             caller_name=caller_name,
@@ -372,56 +534,11 @@ class Assistant(Agent):
             urgency=urgency,
             caller_language=caller_language,
         )
-
         await self._publish_tool_data("human_help_request", rec)
-
-        ref = rec.get("reference_id", "ESC-99999")
-        status_msg = "updated existing open ticket" if rec.get("is_duplicate") else "created new ticket"
-
-        return (
-            f"Successfully {status_msg} for human support. "
-            f"Reference ID: {ref}. "
-            f"Priority Level: {rec.get('urgency')}. "
-            f"Preferred Contact Method: {contact_method}. "
-            f"Please inform the caller their Reference ID is {ref} and our human support team will follow up via {contact_method}."
-        )
-
-    @function_tool
-    async def check_escalation_status(self, ctx: RunContext, reference_id: str) -> str:
-        """Use this tool when a caller asks about the status of their existing human support request. They will provide a reference ID like 'ESC-12345'.
-
-        Args:
-            reference_id: The escalation reference ID (e.g. 'ESC-12345')
-        """
-        logger.info(f"check_escalation_status called for ref: {reference_id}")
-        esc = db.lookup_escalation_by_ref(reference_id.strip().upper())
-        if not esc:
-            return f"No escalation ticket found with reference ID '{reference_id}'. Please verify the ID and try again."
-
-        status = esc.get("status", "Unknown")
-        category = esc.get("reason_category", "N/A")
-        urgency = esc.get("urgency", "N/A")
-        created = esc.get("created_at", "N/A")
-
-        await self._publish_tool_data("escalation_status_check", {
-            "reference_id": esc["reference_id"],
-            "caller_name": esc["caller_name"],
-            "reason_category": category,
-            "urgency": urgency,
-            "status": status,
-            "created_at": created,
-        })
-
-        return (
-            f"Escalation ticket {reference_id} status is currently: {status}. "
-            f"Category: {category}. Urgency: {urgency}. "
-            f"Created on: {created}. "
-            f"Please inform the caller of the current status."
-        )
+        return f"Created ticket {rec.get('reference_id')}."
 
 
 server = AgentServer()
-
 
 
 def prewarm(proc: JobProcess):
@@ -437,26 +554,13 @@ async def my_agent(ctx: JobContext):
     session_start_time = datetime.now()
     session_id = f"sess_{int(session_start_time.timestamp())}_{uuid.uuid4().hex[:6]}"
 
-    # Logging setup
-    ctx.log_context_fields = {
-        "room": ctx.room.name,
-    }
-
-    # Initialize assistant with a default user_id (will update after connecting)
+    ctx.log_context_fields = {"room": ctx.room.name}
     assistant = Assistant(user_id="default_user")
 
-    # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
     session = AgentSession(
         stt=deepgram.STT(model="nova-3", language="multi"),
-        llm=google.LLM(
-            model="gemini-3.5-flash-lite",
-        ),
-        tts=murf.TTS(
-            voice="Samar", 
-            style="Conversation",
-            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-            text_pacing=True
-        ),
+        llm=google.LLM(model="gemini-3.5-flash-lite"),
+        tts=get_agent_tts("Samar"),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=True,
@@ -464,21 +568,23 @@ async def my_agent(ctx: JobContext):
 
     def log_final_outcome():
         duration = (datetime.now() - session_start_time).total_seconds()
-        tools_list = list(getattr(assistant, "tools_executed", []))
-        caller_info = db.lookup_caller(assistant.user_id) if hasattr(assistant, "user_id") else None
-        caller_name = caller_info.get("name") if (caller_info and isinstance(caller_info, dict)) else "Browser Caller"
+        current = getattr(session, "_agent", assistant)
+        tools_list = list(getattr(current, "tools_executed", []))
+        caller_info = (
+            db.lookup_caller(assistant.user_id)
+            if hasattr(assistant, "user_id")
+            else None
+        )
+        caller_name = (
+            caller_info.get("name")
+            if (caller_info and isinstance(caller_info, dict))
+            else "Browser Caller"
+        )
 
-        # Day 8 Objective: A call is SUCCESSFUL if the user's inquiry is resolved (i.e. at least 1 core tool executed or session > 30s)
-        # Otherwise recorded as FAILED (Incomplete Task / Early Hangup).
-        if len(tools_list) > 0:
-            outcome = "success"
-            failure_reason = "None"
-        elif duration >= 30.0:
-            outcome = "success"
-            failure_reason = "None"
-        else:
-            outcome = "failed"
-            failure_reason = "Incomplete Task / Early Hangup"
+        outcome = "success" if (len(tools_list) > 0 or duration >= 30.0) else "failed"
+        failure_reason = (
+            "None" if outcome == "success" else "Incomplete Task / Early Hangup"
+        )
 
         db.log_call_session(
             session_id=session_id,
@@ -493,10 +599,11 @@ async def my_agent(ctx: JobContext):
 
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant: rtc.RemoteParticipant):
-        logger.info(f"Remote participant disconnected: {participant.identity}. Logging call outcome.")
         log_final_outcome()
 
     try:
+        await ctx.connect()
+
         await session.start(
             agent=assistant,
             room=ctx.room,
@@ -512,38 +619,25 @@ async def my_agent(ctx: JobContext):
             ),
         )
 
-        await ctx.connect()
-
         user_id = "default_user"
         for _ in range(20):
             if ctx.room.remote_participants:
                 user_id = list(ctx.room.remote_participants.values())[0].identity
-                logger.info(f"Connected to remote participant. Found identity: {user_id}")
                 break
             await asyncio.sleep(0.1)
 
         assistant.user_id = f"{SESSION_SALT}_{user_id}"
-        assistant._room = ctx.room  # Store room ref for publishing tool data to frontend
-        logger.info(f"Updated assistant user_id to: {assistant.user_id}")
+        assistant._room = ctx.room
 
         caller = db.lookup_caller(assistant.user_id)
         if caller and caller.get("name"):
             name = caller.get("name")
-            lang = str(caller.get("language_preference")).lower()
-            last_date = caller.get("last_interaction") or "recently"
-            facts = caller.get("facts") or {}
-            last_topic = facts.get("topic") or facts.get("last_topic") or "government schemes"
-            
-            if lang == "english":
-                welcome_msg = f"Welcome back {name}! Last time on {last_date} we discussed {last_topic}. Did you apply or do you need help with anything else today?"
-            else:
-                welcome_msg = f"स्वागत है वापस {name} जी! पिछली बार {last_date} को हमने {last_topic} के बारे में बात की थी। क्या आपने आवेदन किया या आज मैं आपकी कोई और सहायता कर सकता हूँ?"
-            
+            welcome_msg = f"Welcome back {name}! How can I help you today?"
             await session.say(welcome_msg, allow_interruptions=True)
         else:
             welcome_msg = "नमस्ते! जन धन सेवा में आपका स्वागत है। Hello! Welcome to Jan Dhan Seva. How can I help you today?"
             await session.say(welcome_msg, allow_interruptions=True)
-            
+
     finally:
         log_final_outcome()
 

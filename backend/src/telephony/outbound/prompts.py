@@ -45,10 +45,7 @@ def build_greeting(metadata: dict) -> str:
     name = metadata.get("customer_name", "")
 
     if name:
-        return (
-            f"नमस्ते, मैं आरव बोल रहा हूँ, जन धन सेवा से। "
-            f"क्या मैं {name} जी से बात कर रहा हूँ?"
-        )
+        return f"नमस्ते, मैं आरव बोल रहा हूँ, जन धन सेवा से। क्या मैं {name} जी से बात कर रहा हूँ?"
     else:
         return (
             "नमस्ते, मैं आरव बोल रहा हूँ, जन धन सेवा से। "

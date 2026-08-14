@@ -39,6 +39,7 @@ interface AnalyticsData {
   failed_calls: number;
   success_rate: number;
   avg_duration_seconds: number;
+  avg_latency_ms?: number;
   failure_breakdown: Record<string, number>;
   channel_breakdown: Record<string, number>;
   recent_calls: CallLog[];

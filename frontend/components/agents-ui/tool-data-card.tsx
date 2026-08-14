@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from 'motion/react';
 
 import { useRoomContext } from '@livekit/components-react';
 import { RoomEvent } from 'livekit-client';
-import { X, Coins, Landmark, Calculator, ExternalLink, ShieldCheck, Clock, AlertTriangle, UserCheck, PhoneCall, Lock } from 'lucide-react';
+import { X, Coins, Landmark, Calculator, ExternalLink, ShieldCheck, Clock, AlertTriangle, UserCheck, PhoneCall, Lock, Bot, ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export interface ToolDataPayload {
   type: string;
-  tool: 'gold_silver_price' | 'scheme_lookup' | 'fd_calculator' | 'human_help_request' | string;
+  tool: 'gold_silver_price' | 'scheme_lookup' | 'fd_calculator' | 'human_help_request' | 'agent_handoff' | string;
   data: any;
 }
 
@@ -71,7 +71,9 @@ export function ToolDataCard() {
               ? 'bg-rose-950/90 border-rose-500/50 shadow-rose-950/50'
               : currentData.tool === 'escalation_status_check'
                 ? 'bg-indigo-950/90 border-indigo-500/50 shadow-indigo-950/50'
-                : 'bg-slate-900/90 border-amber-500/30'
+                : currentData.tool === 'agent_handoff'
+                  ? 'bg-purple-950/90 border-purple-500/50 shadow-purple-950/50'
+                  : 'bg-slate-900/90 border-amber-500/30'
             }`}
         >
           {/* Header */}
@@ -102,6 +104,11 @@ export function ToolDataCard() {
                   <Clock className="h-4 w-4" />
                 </div>
               )}
+              {currentData.tool === 'agent_handoff' && (
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/40 animate-pulse">
+                  <ArrowRightLeft className="h-4 w-4" />
+                </div>
+              )}
 
               <div>
                 <h4 className="text-xs font-bold tracking-wider uppercase text-slate-200">
@@ -110,13 +117,16 @@ export function ToolDataCard() {
                   {currentData.tool === 'fd_calculator' && 'FD Return Calculator / एफडी रिटर्न'}
                   {currentData.tool === 'human_help_request' && 'Human Escalation Ticket / मानव सहायता'}
                   {currentData.tool === 'escalation_status_check' && 'Escalation Ticket Status / टिकट स्थिति'}
+                  {currentData.tool === 'agent_handoff' && 'Specialist Agent Handoff / एजेंट हस्तांतरण'}
                 </h4>
                 <p className="text-[10px] text-slate-400 font-medium">
                   {currentData.tool === 'human_help_request'
                     ? 'Escalation sent to Human Support Desk'
                     : currentData.tool === 'escalation_status_check'
                       ? 'Live Database Record Looked Up'
-                      : 'Real-Time Data pushed to screen'}
+                      : currentData.tool === 'agent_handoff'
+                        ? 'Dynamic Voice Agent Handoff Active'
+                        : 'Real-Time Data pushed to screen'}
                 </p>
               </div>
             </div>
@@ -166,7 +176,7 @@ export function ToolDataCard() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {currentData.data.timestamp}
+                  {currentData.data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             </div>
@@ -374,6 +384,47 @@ export function ToolDataCard() {
                   <span className="text-[10px] text-slate-400 block mt-1">
                     Created: {currentData.data.created_at}
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentData.tool === 'agent_handoff' && (
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between bg-purple-950/60 border border-purple-500/30 rounded-xl p-2.5 px-3">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Active Specialist</span>
+                  <span className="text-base font-black text-purple-300 tracking-wider flex items-center gap-1.5">
+                    <Bot className="h-4 w-4 text-purple-400" />
+                    {currentData.data.active_agent}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border bg-purple-500/20 text-purple-300 border-purple-500/40 animate-pulse">
+                    ● ACTIVE
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2 border-b border-slate-800 pb-2">
+                  <div>
+                    <span className="text-[9px] text-slate-400 uppercase font-semibold block">Specialist Role</span>
+                    <span className="text-xs font-bold text-slate-100">{currentData.data.role}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 uppercase font-semibold block">Handed Off From</span>
+                    <span className="text-xs font-bold text-slate-100">{currentData.data.previous_agent}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[9px] text-purple-400 font-extrabold uppercase tracking-wider block">
+                    Trigger Reason / कारण:
+                  </span>
+                  <p className="text-[11px] text-slate-200 mt-1 leading-snug bg-purple-950/30 p-2 rounded-lg border border-purple-500/20 italic">
+                    "{currentData.data.reason}"
+                  </p>
                 </div>
               </div>
             </div>

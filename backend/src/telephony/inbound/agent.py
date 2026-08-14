@@ -91,9 +91,7 @@ class InboundAgent(Agent):
     @function_tool
     async def end_call(self, context: RunContext) -> str:
         """Hang up the call once the conversation is finished."""
-        await context.session.generate_reply(
-            instructions="Thank them and say goodbye."
-        )
+        await context.session.generate_reply(instructions="Thank them and say goodbye.")
         logger.info("ending call")
         await self.ctx.api.room.delete_room(
             api.DeleteRoomRequest(room=self.ctx.room.name)
@@ -119,7 +117,7 @@ async def inbound_agent(ctx: JobContext):
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3", language="multi"),
-        llm=google.LLM(model="gemini-2.5-flash"),
+        llm=google.LLM(model="gemini-3.5-flash-lite"),
         tts=murf.TTS(
             voice="Samar",
             style="Conversation",

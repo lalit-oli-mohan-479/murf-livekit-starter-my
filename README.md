@@ -2,18 +2,16 @@
 > **Built for #10DaysOfVoiceAgents Challenge by Murf AI**  
 > Powered by **Murf Falcon TTS** (Fastest Streaming Voice API), **LiveKit Agents**, **Deepgram STT**, & **Google Gemini LLM**.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming) [![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming) [![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)## 🌟 What We Have Built (Days 1 – 9 Progress)
 
----
-
-## 🌟 What We Have Built (Days 1 – 8 Progress)
-
-Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He helps common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, places proactive outbound SIP reminder calls, seamlessly escalates complex disputes & cyber fraud claims to human support desks, and provides operational visibility via a real-time **Call Analytics Dashboard** with SQLite persistence!
+Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He operates as a **Multi-Agent Voice Mesh** with 4 specialized AI personas, helping common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, placing proactive outbound SIP reminder calls, seamlessly transferring callers to domain specialists (**Kavya, Vikram, Kirti**), escalating complex disputes & cyber fraud claims to human support desks, and providing operational visibility via a real-time **Call Analytics Dashboard** with SQLite persistence!
 
 ```
 Inbound Flow:  User speaks → [Deepgram STT] → text → [Gemini LLM] → response → [Murf Falcon TTS] → audio → User hears
-                                            ↓
+                                             ↓
                                [Tools & SQLite Memory] → [LiveKit Data Channel] → 📱 UI Card Push
+
+Multi-Agent:   User query topic → [Handoff Tool] → [Atomic TTS Engine Switch] → 🎭 Specialist Speaks (Samar/Pooja/Nikhil/Palak)
 
 Analytics:     Call Disconnect → [agent.py Listener] → [SQLite call_logs Table] → 📊 Live Dashboard & Donut Chart
 
@@ -97,6 +95,18 @@ Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone �
   - Automatically captures `session_id`, `channel` (Browser/SIP), `outcome`, `failure_reason`, `duration_seconds`, and `tools_used` into SQLite (`call_logs` table) upon participant disconnect.
 - **Live Glassmorphic Call Analytics Dashboard UI**:
   - Displays 5 real-time stat cards: Total Calls, Successful Calls, Failed Calls, Success Rate (%), Average Call Duration, and **Voice Turn Latency (~480ms)**. Includes 5-second auto-refresh polling via `/api/analytics`.
+- **Visual SVG Donut/Pie Chart & Failure Breakdown**:
+  - Custom SVG Donut/Pie Chart rendering Success vs. Failure ratios dynamically, a **Failure Categories Breakdown** card, and channel & outcome filters.
+
+#### 🔹 Day 9 — Multi-Agent Mesh Architecture, Specialist Handoffs & Voice Engine Switching 🔄🎭
+- **4-Agent Specialist Mesh Network**:
+  - Built an integrated specialist network featuring **Aarav** (*Main Guide* / Murf **Samar**), **Kavya** (*Schemes Specialist* / Murf **Pooja**), **Vikram** (*Fraud Specialist* / Murf **Nikhil**), and **Kirti** (*FD Calculator Specialist* / Murf **Palak**).
+- **Sub-Second Atomic Voice Engine Switching**:
+  - Implemented real-time persona handoffs that synchronously switch the underlying `ctx.session._tts` engine to match the specialist's assigned voice model without resetting the audio connection.
+- **Autonomous Proactive Speech & Zero-Delay Handoff**:
+  - Automatically generates an immediate response turn upon handoff so incoming specialist agents greet and answer queries immediately without forcing the user to re-prompt.
+- **Hardened Tool Integration & Stability**:
+  - Cleaned up Gemini LLM parameter binding for `calculate_fd_returns` and migrated model tier to `gemini-3.5-flash-lite` to eliminate free-tier API rate limits.analytics`.
 - **Visual SVG Donut/Pie Chart & Failure Breakdown**:
   - Custom SVG Donut/Pie Chart rendering Success vs. Failure ratios dynamically, a **Failure Categories Breakdown** card, and channel & outcome filters.
 

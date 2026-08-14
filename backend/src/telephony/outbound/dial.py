@@ -127,16 +127,16 @@ def main() -> None:
 
     asyncio.run(dial(metadata["phone_number"], room_name, metadata))
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  OUTBOUND CALL DISPATCHED FROM CSV / CLI")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Agent:    {AGENT_NAME}")
     print(f"  Room:     {room_name}")
     print(f"  Calling:  {metadata['phone_number']}")
     print(f"  Name:     {metadata['customer_name']}")
     print(f"  Scheme:   {metadata['scheme_name']}")
     print(f"  Deadline: {metadata['deadline']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"\nWatch the worker terminal for call progress.")
 
 

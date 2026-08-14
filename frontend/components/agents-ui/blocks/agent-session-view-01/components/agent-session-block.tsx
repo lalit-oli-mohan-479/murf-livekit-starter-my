@@ -181,6 +181,7 @@ export function AgentSessionView_01({
   const [chatOpen, setChatOpen] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { state: agentState } = useAgent();
+  const [activeAgent, setActiveAgent] = useState<string>('Aarav');
 
   const controls: AgentControlBarControls = {
     leave: true,
@@ -189,6 +190,26 @@ export function AgentSessionView_01({
     camera: supportsVideoInput,
     screenShare: supportsScreenShare,
   };
+
+  useEffect(() => {
+    if (!session.room) return;
+    const handleDataReceived = (payload: Uint8Array) => {
+      try {
+        const text = new TextDecoder().decode(payload);
+        const parsed = JSON.parse(text);
+        if ((parsed.type === 'tool_data' || parsed.type === 'tool-data') && parsed.tool === 'agent_handoff') {
+          const name = parsed.data?.active_agent?.split(' ')[0] || 'Aarav';
+          setActiveAgent(name);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+    session.room.on('dataReceived', handleDataReceived);
+    return () => {
+      session.room.off('dataReceived', handleDataReceived);
+    };
+  }, [session.room]);
 
   useEffect(() => {
     const lastMessage = messages.at(-1);
@@ -219,7 +240,7 @@ export function AgentSessionView_01({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
               </span>
-              <span className="text-[10px] font-bold text-yellow-500 tracking-widest uppercase">Aarav is speaking</span>
+              <span className="text-[10px] font-bold text-yellow-500 tracking-widest uppercase">{activeAgent} is speaking</span>
             </>
           ) : agentState === 'listening' ? (
             <>
@@ -235,7 +256,7 @@ export function AgentSessionView_01({
                 <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              <span className="text-[10px] font-bold text-blue-500 tracking-widest uppercase">Aarav is thinking</span>
+              <span className="text-[10px] font-bold text-blue-500 tracking-widest uppercase">{activeAgent} is thinking</span>
             </>
           ) : (
             <>
@@ -248,11 +269,11 @@ export function AgentSessionView_01({
         </div>
         <div className="text-[9px] text-muted-foreground font-semibold text-center">
           {agentState === 'speaking'
-            ? 'आरव बोल रहे हैं...'
+            ? `${activeAgent} बोल रहे हैं...`
             : agentState === 'listening'
-              ? 'बोलना शुरू करें, आरव सुन रहे हैं...'
+              ? `बोलना शुरू करें, ${activeAgent} सुन रहे हैं...`
               : agentState === 'thinking'
-                ? 'आरव सोच रहे हैं...'
+                ? `${activeAgent} सोच रहे हैं...`
                 : 'कॉल शुरू हो गया है'}
         </div>
       </div>

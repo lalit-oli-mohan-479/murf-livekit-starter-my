@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import db
 
+
 def main():
     parser = argparse.ArgumentParser(description="Query escalations for API")
     parser.add_argument("--ref", default="", help="Reference ID to query")
@@ -29,6 +30,7 @@ def main():
         s_filter = status_val if status_val else None
         res = db.get_escalations(status=s_filter)
         print(json.dumps(res, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     main()
