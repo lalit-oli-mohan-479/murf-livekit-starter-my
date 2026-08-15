@@ -1,6 +1,6 @@
 # Building Jan Dhan Seva: A Multi-Agent Voice AI Assistant for Financial Literacy in India 🇮🇳
 
-> **#10DaysOfVoiceAgents Challenge — VoiceForBharat Edition by Murf AI**  
+> **#10DaysOfAIVoiceAgents Challenge — VoiceForBharat Edition by Murf AI**  
 > *Powered by Murf Falcon TTS, LiveKit Agents SDK, Deepgram STT, Google Gemini LLM, Next.js 15, and SQLite.*
 
 ---
@@ -13,7 +13,7 @@ Navigating complex banking terminology, understanding government scheme eligibil
 
 To solve this, I built **Jan Dhan Seva (Aarav Voice Agent)**—an interactive, register-aware, multilingual AI voice assistant designed to deliver accessible financial guidance in **Hindi (Devanagari)** and **English**.
 
-Over the course of the **#10DaysOfVoiceAgents Challenge**, Jan Dhan Seva evolved from a simple single-turn voice loop into a full-fledged **Multi-Agent Voice Mesh Ecosystem** featuring:
+Over the course of the **#10DaysOfAIVoiceAgents Challenge**, Jan Dhan Seva evolved from a simple single-turn voice loop into a full-fledged **Multi-Agent Voice Mesh Ecosystem** featuring:
 - **Aarav** (*Main Financial Guide*) — Murf Voice: **Samar**
 - **Kavya** (*Government Schemes Specialist*) — Murf Voice: **Pooja**
 - **Vikram** (*Fraud & Cyber Security Specialist*) — Murf Voice: **Nikhil**
@@ -259,4 +259,4 @@ Here are common issues you might run into when building a multi-agent voice bot 
 - **Murf Falcon TTS API**: [Murf AI Documentation](https://murf.ai/api/docs)
 - **LiveKit Agents Framework**: [LiveKit Docs](https://docs.livekit.io/agents)
 
-*Built with ❤️ for #VoiceForBharat and the #10DaysOfVoiceAgents Challenge.*
+*Built with ❤️ for #VoiceForBharat and the #10DaysOfAIVoiceAgents Challenge.*
