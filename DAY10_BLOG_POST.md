@@ -255,7 +255,7 @@ Here are common issues you might run into when building a multi-agent voice bot 
 
 ## 🔗 Code & Resources
 
-- **GitHub Repository**: [lalit-oli-mohan-479/murf-livekit-starter-my (Branch: DAY9)](https://github.com/lalit-oli-mohan-479/murf-livekit-starter-my/tree/DAY9)
+- **GitHub Repository**: [https://github.com/lalit-oli-mohan-479/murf-livekit-starter-my](https://github.com/lalit-oli-mohan-479/murf-livekit-starter-my)
 - **Murf Falcon TTS API**: [Murf AI Documentation](https://murf.ai/api/docs)
 - **LiveKit Agents Framework**: [LiveKit Docs](https://docs.livekit.io/agents)
 
