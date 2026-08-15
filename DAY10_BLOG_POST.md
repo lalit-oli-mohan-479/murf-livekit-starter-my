@@ -3,6 +3,8 @@
 > **#10DaysOfAIVoiceAgents Challenge — VoiceForBharat Edition by Murf AI**  
 > *Powered by Murf Falcon TTS, LiveKit Agents SDK, Deepgram STT, Google Gemini LLM, Next.js 15, and SQLite.*
 
+![Jan Dhan Seva AI Voice Assistant Banner](blog_cover_banner.png)
+
 ---
 
 ## 📌 1. The Problem & The Vision
