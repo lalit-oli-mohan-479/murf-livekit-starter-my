@@ -25,7 +25,7 @@ Over the course of the **#10DaysOfVoiceAgents Challenge**, Jan Dhan Seva evolved
 
 The system operates on an ultra-low latency (<480ms voice turn) streaming loop using WebRTC transport.
 
-![Jan Dhan Seva Multi-Agent Voice Architecture](architecture_diagram.png)
+![Jan Dhan Seva Multi-Agent Voice Architecture](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/ntwvispg3umrez6b60wd.png)
 
 ### Audio & Event Sequence Diagram
 
