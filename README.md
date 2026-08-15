@@ -1,8 +1,10 @@
 # Aarav — Indian Financial Literacy Voice Agent 🇮🇳
-> **Built for #10DaysOfVoiceAgents Challenge by Murf AI**  
+> **Built for #10DaysOfAIVoiceAgents Challenge by Murf AI**  
 > Powered by **Murf Falcon TTS** (Fastest Streaming Voice API), **LiveKit Agents**, **Deepgram STT**, & **Google Gemini LLM**.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming) [![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)## 🌟 What We Have Built (Days 1 – 9 Progress)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming) [![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+
+## 🌟 What We Have Built (Days 1 – 10 Completed)
 
 Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He operates as a **Multi-Agent Voice Mesh** with 4 specialized AI personas, helping common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, placing proactive outbound SIP reminder calls, seamlessly transferring callers to domain specialists (**Kavya, Vikram, Kirti**), escalating complex disputes & cyber fraud claims to human support desks, and providing operational visibility via a real-time **Call Analytics Dashboard** with SQLite persistence!
 
@@ -109,6 +111,14 @@ Outbound Flow: [CSV Batch / CLI] → [LiveKit SIP Trunk] → 📞 Callee Phone �
   - Cleaned up Gemini LLM parameter binding for `calculate_fd_returns` and migrated model tier to `gemini-3.5-flash-lite` to eliminate free-tier API rate limits.analytics`.
 - **Visual SVG Donut/Pie Chart & Failure Breakdown**:
   - Custom SVG Donut/Pie Chart rendering Success vs. Failure ratios dynamically, a **Failure Categories Breakdown** card, and channel & outcome filters.
+
+#### 🔹 Day 10 — Share Your Voice Agent Journey (Challenge Completion) 🚀
+- **Technical Blog Post Published**:
+  - Authored and published a comprehensive technical deep-dive on DEV Community detailing system architecture, streaming pipeline, multi-agent mesh design, tool execution, engineering pivots, and step-by-step setup instructions.
+- **Visual System Architecture & Cover Artwork**:
+  - Embedded full-duplex WebRTC sequence diagrams and visual cover infographics illustrating audio transport and multi-agent specialist mesh routing.
+- **#10DaysOfAIVoiceAgents LinkedIn Journey Announcement**:
+  - Shared the final project milestone on LinkedIn highlighting the complete 10-day build of **Jan Dhan Seva**, tagging **@Murf AI**, and demonstrating the power of **Murf Falcon TTS** for multilingual Indian voice AI applications.
 
 ---
 
