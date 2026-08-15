@@ -82,37 +82,33 @@ sequenceDiagram
 
 ---
 
-## 🌟 3. Key Features Built Across the 10 Days
+## 🌟 3. Key Features Built Across the 9-Day Journey (Day 1 – Day 9)
 
-### 1. Multi-Agent Mesh Architecture & Atomic Voice Engine Switching 🔄
-Instead of relying on a single monolith agent, Jan Dhan Seva implements a 4-agent specialist mesh. When a user switches topics, the active agent executes a handoff tool that atomically updates the session's underlying Murf TTS voice profile in real-time without dropping the WebRTC audio connection:
+Here is how Jan Dhan Seva evolved over the 9 days of development:
 
-```python
-# Code Snippet: Atomic voice engine & persona transition inside AgentSession
-async def _switch_agent(self, specialist: BaseAgent, active_agent_title: str) -> str:
-    # 1. Update TTS engine to specialist's assigned Murf voice model
-    self.ctx.session._tts = specialist.tts
-    # 2. Switch agent persona and instructions
-    self.ctx.session.update_agent(specialist)
-    # 3. Trigger immediate proactive speech generation
-    asyncio.create_task(self.ctx.session.generate_reply())
-    return f"Transferred call to {active_agent_title}."
-```
+#### 🔹 Day 1 — Streaming Pipeline & Foundations ⚡
+- Integrated **LiveKit WebRTC**, **Deepgram STT** (`nova-3`), **Google Gemini LLM**, and **Murf Falcon TTS** (`Samar` voice).
+- Established an ultra-low latency streaming voice loop (<300ms total audio pipeline).
 
-### 2. Strict Language Mirroring & Financial Safety Guardrails 🛡️
-- **Script Consistency**: If a user speaks Hindi, the agent responds in pure Devanagari Hindi. If in English, pure English.
-- **Credential Protection**: Intercepts requests or attempts to share OTPs, PINs, passwords, or 16-digit card numbers, issuing immediate security warnings without saving sensitive data.
+#### 🔹 Day 2 — Aarav Persona, Language Mirroring & Safety Guardrails 🛡️
+- Created **Aarav**: a warm, patient financial literacy guide.
+- **Strict Language Mirroring**: Devanagari Hindi input → Pure Devanagari Hindi output; English input → Pure English output.
+- **Financial Safety Filter**: Intercepts requests for PINs, passwords, OTPs, or 16-digit card numbers with instant security alerts.
 
-### 3. Persistent Caller Profile Memory & Explicit Consent 💾
-Integrates SQLite caller lookup (`lookup_caller`). Greets returning citizens by name, references their last visit timestamp and topics discussed, and enforces explicit user consent before storing personal information.
+#### 🔹 Day 3 — Frontend Customization, Transcripts & Visualizers 🎨
+- Built Next.js UI with real-time bilingual chat transcripts, speaker state badges (`Listening`, `Thinking`, `Speaking`), and dynamic wave visualizers.
 
-### 4. Live Data Tools & Floating UI Data Cards 📊
-- **Bullion Rate Tool (`get_gold_silver_price`)**: Live 24K/22K Gold & Silver market rates in INR via GoldAPI.io.
-- **Government Schemes Database (`lookup_govt_scheme`)**: Curated eligibility criteria, benefit breakdowns, and required document checklists for 8 major schemes (*PMJDY, APY, PMSBY, PMJJBY, Sukanya Samriddhi, PM Kisan, PM Mudra*).
+#### 🔹 Day 4 — Persistent Caller Profile Memory & Explicit Consent 💾
+- Integrated local SQLite database (`db.py`) for caller profile memory (`lookup_caller`).
+- Greets returning citizens by name, references their previous interaction date, and enforces explicit user consent before storing personal information.
+
+#### 🔹 Day 5 — Real-Time Tools & Floating UI Data Cards 📊
+- **Bullion Rate Tool (`get_gold_silver_price`)**: Live 24K/22K Gold & Silver rates via GoldAPI.io.
+- **Government Schemes Database (`lookup_govt_scheme`)**: Curated eligibility criteria, benefit breakdowns, and document checklists for 8 major schemes.
 - **FD Returns Calculator (`calculate_fd_returns`)**: Computes exact quarterly compounding returns based on current SBI rates (7.1% p.a.).
 
 ```python
-# Code Snippet: Hardened FD Returns Calculation Tool
+# Code Snippet: Hardened FD Returns Calculation Tool (Day 5)
 @function_tool
 async def calculate_fd_returns(
     self,
@@ -126,7 +122,7 @@ async def calculate_fd_returns(
     maturity = p_float * ((1 + rate / n) ** (n * d_float))
     interest = maturity - p_float
     
-    # Broadcast floating UI card to frontend
+    # Broadcast floating UI card to frontend via LiveKit Data Channel
     await self._publish_tool_data("fd_calculator", {
         "principal": int(p_float),
         "duration_years": round(d_float, 1),
@@ -137,14 +133,31 @@ async def calculate_fd_returns(
     return f"Maturity amount is {int(maturity)} INR for {d_float} years at 7.1% interest."
 ```
 
-### 5. Outbound SIP Telephony & Gated Identity Verification 📞
-Configured LiveKit Outbound SIP trunking to place automated reminder calls from CSV customer lists (`customers.csv`). Features identity confirmation gates (*"क्या मैं Ramesh जी से बात कर रहा हूँ?"*) and records call telemetry (duration, outcome, retry recommendation) to SQLite.
+#### 🔹 Day 6 — Outbound SIP Telephony Agent & Outcome Handling 📞
+- Configured LiveKit Outbound SIP trunking to place automated reminder calls from CSV lists (`customers.csv`).
+- Features identity confirmation gates (*"क्या मैं Ramesh जी से बात कर रहा हूँ?"*) and logs call telemetry (duration, outcome, retry recommendation) to SQLite.
 
-### 6. Human Escalation Protocol & Support Portal 🚨
-For unresolved disputes or cyber fraud reports, the agent generates unique reference IDs (e.g. `ESC-72973`), redacts PII, saves tickets to SQLite, provides status lookups, and posts rich asynchronous alerts to Discord support webhooks.
+#### 🔹 Day 7 — Human Escalation Protocol & Web Support Portal 🚨
+- Generates unique reference IDs (e.g. `ESC-72973`) for cyber fraud disputes, redacts PII, saves tickets to SQLite, provides status lookups, and posts rich alerts to Discord support webhooks.
 
-### 7. Real-Time Call Analytics Dashboard 📈
-A glassmorphic dashboard featuring 5 live telemetry cards (Total Calls, Success Rate %, Avg Duration, Voice Turn Latency ~480ms), an SVG Donut Chart, failure category breakdowns, and 5-second polling via Next.js 15 REST endpoints (`/api/analytics`).
+#### 🔹 Day 8 — Glassmorphic Call Analytics Dashboard 📈
+- Features 5 live telemetry cards (Total Calls, Success Rate %, Avg Duration, Voice Turn Latency ~480ms), an SVG Donut Chart, failure category breakdowns, and 5-second polling via Next.js 15 REST endpoints (`/api/analytics`).
+
+#### 🔹 Day 9 — Multi-Agent Mesh Architecture & Atomic Voice Engine Switching 🔄🎭
+- Built an integrated specialist network featuring **Aarav** (*Main Guide* / Murf **Samar**), **Kavya** (*Schemes Specialist* / Murf **Pooja**), **Vikram** (*Fraud Specialist* / Murf **Nikhil**), and **Kirti** (*FD Calculator Specialist* / Murf **Palak**).
+- Synchronously updates `ctx.session._tts` engine to match the specialist's assigned voice model without dropping WebRTC audio:
+
+```python
+# Code Snippet: Atomic voice engine & persona transition inside AgentSession (Day 9)
+async def _switch_agent(self, specialist: BaseAgent, active_agent_title: str) -> str:
+    # 1. Update TTS engine to specialist's assigned Murf voice model
+    self.ctx.session._tts = specialist.tts
+    # 2. Switch agent persona and instructions
+    self.ctx.session.update_agent(specialist)
+    # 3. Trigger immediate proactive speech generation
+    asyncio.create_task(self.ctx.session.generate_reply())
+    return f"Transferred call to {active_agent_title}."
+```
 
 ---
 
