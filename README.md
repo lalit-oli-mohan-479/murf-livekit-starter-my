@@ -1,50 +1,25 @@
 # Multilingual AI Financial Voice Assistant 🇮🇳
-> **Built for #10DaysOfAIVoiceAgents Challenge by Murf AI**  
-> Powered by **Murf Falcon TTS** (Fastest Streaming Voice API), **LiveKit Agents**, **Deepgram STT**, & **Google Gemini LLM**.
 
-## 🌟 What We Have Built (Days 1 – 10 Completed)
+> Built for #10DaysOfAIVoiceAgents Challenge by Murf AI. Powered by Murf Falcon TTS, LiveKit Agents, Deepgram STT, and Google Gemini LLM.
 
-Aarav is a friendly, register-aware, and culturally sensitive digital financial guide working for **Jan Dhan Seva** (National Financial Literacy Campaign). He operates as a **Multi-Agent Voice Mesh** with 4 specialized AI personas, helping common citizens understand basic banking, fixed deposits, social security schemes, and live market rates in **Hindi, English, and Hinglish**, placing proactive outbound SIP reminder calls, seamlessly transferring callers to domain specialists (**Kavya, Vikram, Kirti**), escalating complex disputes & cyber fraud claims to human support desks, and providing operational visibility via a real-time **Call Analytics Dashboard** with SQLite persistence!
+## What We Have Built
 
-## 📅 Feature Roadmap & Achievements
+Aarav is a multilingual financial literacy voice assistant for Jan Dhan Seva. The project combines a real-time voice pipeline, SQLite memory, financial tools, outbound SIP calling, human escalation, call analytics, and a multi-agent specialist mesh.
 
-#### 🔹 Day 1 — Pipeline & Foundations
-- Configured real-time WebRTC audio transport using **LiveKit**.
-- Integrated **Deepgram STT**, **Google Gemini LLM**, and **Murf Falcon TTS**.
+## Feature Roadmap
 
-#### 🔹 Day 2 — Persona & Safety Guardrails
-- Created the **Aarav** persona and multilingual financial safety guardrails.
+- **Day 1:** LiveKit + Deepgram + Gemini + Murf Falcon voice pipeline.
+- **Day 2:** Aarav persona, multilingual responses, and financial safety guardrails.
+- **Day 3:** Next.js bilingual transcripts, speaker states, and visualizers.
+- **Day 4:** SQLite caller memory, consent, returning-user recognition, and Forget Me.
+- **Day 5:** Gold/silver rates, government schemes, FD calculator, tool chaining, and UI cards.
+- **Day 6:** Outbound SIP calls, identity verification, CSV campaigns, retry logic, and call auditing.
+- **Day 7:** Human escalation, PII redaction, ticket tracking, support portal, and webhook alerts.
+- **Day 8:** Call analytics dashboard, success/failure metrics, latency tracking, charts, and filters.
+- **Day 9:** Four-agent specialist mesh and real-time TTS voice switching.
+- **Day 10:** Technical journey, architecture documentation, and challenge completion.
 
-#### 🔹 Day 3 — Frontend Customization & Visualizers
-- Added bilingual transcripts, speaker states, and audio visualizers.
-
-#### 🔹 Day 4 — Persistent Agent Memory & Consent
-- Added SQLite caller memory, consent flow, returning-user recognition, and **Forget Me**.
-
-#### 🔹 Day 5 — Real-Time Tools, Data Sources & UI Push
-- Added live gold/silver rates, government scheme lookup, FD calculator, tool chaining, and UI data cards.
-
-#### 🔹 Day 6 — Outbound SIP Telephony Agent & Outcome Handling 📞
-- Added outbound SIP calls, identity verification, CSV campaigns, retry logic, and SQLite auditing.
-
-#### 🔹 Day 7 — Human Escalation Protocol & Support Portal 🛡️
-- Added financial/cyber-fraud escalation, consent, PII redaction, ticket tracking, support portal, and webhook alerts.
-
-#### 🔹 Day 8 — Call Analytics Dashboard 📊
-- Added call success/failure tracking, latency metrics, charts, and filters.
-
-#### 🔹 Day 9 — Multi-Agent Mesh Architecture 🔄🎭
-- Added Aarav, Kavya, Vikram, and Kirti specialist handoffs with voice engine switching.
-
-#### 🔹 Day 10 — Challenge Completion 🚀
-- Completed the technical journey, architecture documentation, and Jan Dhan Seva project.
-
-## 🚀 Quickstart
-
-### Prerequisites
-- **Python 3.10+** & **uv**
-- **Node.js 18+** & **pnpm**
-- **LiveKit Cloud** account
+## Quickstart
 
 ### Inbound Web Agent
 ```bash
@@ -57,7 +32,7 @@ pnpm install
 pnpm dev
 ```
 
-Open **`http://localhost:3000`** and click **START TALKING**.
+Open `http://localhost:3000` and click **START TALKING**.
 
 ### Outbound Telephony Agent
 ```bash
@@ -66,8 +41,9 @@ uv run python src/telephony/outbound/agent.py dev
 uv run python src/telephony/outbound/dial.py --csv src/telephony/outbound/customers.csv --row 3
 ```
 
-## 🔗 Links & Resources
+## Links
+
 - [Murf API Documentation](https://murf.ai/api/docs)
-- [LiveKit Agents Framework](https://docs.livekit.io/agents)
-- [Deepgram STT Docs](https://developers.deepgram.com)
+- [LiveKit Agents](https://docs.livekit.io/agents)
+- [Deepgram](https://developers.deepgram.com)
 - [GoldAPI.io](https://www.goldapi.io/)
